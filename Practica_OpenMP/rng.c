@@ -5,7 +5,7 @@
  * Computacion Paralela, Grado en Informatica (Universidad de Valladolid)
  * 2023/2024
  *
- * v1.0
+ * v1.1
  *
  * (c) 2024, Arturo Gonzalez-Escribano
  */
@@ -17,7 +17,6 @@
  */
 #define RNG_MULTIPLIER 6364136223846793005ULL
 #define RNG_INCREMENT  1442695040888963407ULL
-#define RNG_MODULUS    18446744073709551615ULL // 2^64 - 1
 
 /*
  * Type for random sequences state
@@ -37,10 +36,11 @@ rng_t rng_new(uint64_t seed) {
 
 /*
  * Next: Advance state and return a double number uniformely distributed
+ * Adapted from the implementation on PCG (https://www.pcg-random.org/)
  */
 double rng_next(rng_t *seq) {
-    *seq = ( *seq * RNG_MULTIPLIER + RNG_INCREMENT) % RNG_MODULUS;
-    return (double) *seq / RNG_MODULUS;
+    *seq = ( *seq * RNG_MULTIPLIER + RNG_INCREMENT);
+    return (double) ldexp( *seq, -64 );
 }
 
 /*
@@ -55,3 +55,26 @@ double rng_next_normal( rng_t *seq, double mu, double sigma) {
     
     return mu + sigma * z0;
 }
+
+/*
+ * Skip ahead: Advance state with an arbitrary jump in log time
+ * Adapted from the implementation on PCG (https://www.pcg-random.org/)
+ */
+void rng_skip( rng_t *seq, uint64_t steps ) {
+    uint64_t cur_mult = RNG_MULTIPLIER;
+    uint64_t cur_plus = RNG_INCREMENT;
+
+    uint64_t acc_mult = 1u;
+    uint64_t acc_plus = 0u;
+    while (steps > 0) {
+        if (steps & 1) {
+            acc_mult *= cur_mult;
+            acc_plus = acc_plus * cur_mult + cur_plus;
+        }
+        cur_plus = (cur_mult + 1) * cur_plus;
+        cur_mult *= cur_mult;
+        steps /= 2;
+    }
+    *seq = acc_mult * (*seq) + acc_plus;
+}
+

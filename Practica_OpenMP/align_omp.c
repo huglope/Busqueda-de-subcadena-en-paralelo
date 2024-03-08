@@ -14,6 +14,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<limits.h>
 #include<sys/time.h>
 #include<omp.h>
 
@@ -91,14 +92,26 @@ char *pattern_allocate( rng_t *random, unsigned long pat_rng_length_mean, unsign
  * Function: Fill random sequence or pattern
  */
 void generate_rng_sequence( rng_t *random, float prob_G, float prob_C, float prob_A, char *seq, unsigned long length) {
-	unsigned long ind; 
-	for( ind=0; ind<length; ind++ ) {
-		double prob = rng_next( random );
-		if( prob < prob_G ) seq[ind] = 'G';
-		else if( prob < prob_C ) seq[ind] = 'C';
-		else if( prob < prob_A ) seq[ind] = 'A';
-		else seq[ind] = 'T';
+	#pragma omp parallel
+	{
+		rng_t local_random = *random;
+		int first_iteration = 1;
+
+		unsigned long ind; 
+		#pragma omp for
+		for( ind=0; ind<length; ind++ ) {
+			if ( first_iteration ) {
+				rng_skip( &local_random, ind );
+				first_iteration = 0;
+			}
+			double prob = rng_next( &local_random );
+			if( prob < prob_G ) seq[ind] = 'G';
+			else if( prob < prob_C ) seq[ind] = 'C';
+			else if( prob < prob_A ) seq[ind] = 'A';
+			else seq[ind] = 'T';
+		}
 	}
+	rng_skip( random, length );
 }
 
 /*
@@ -112,6 +125,7 @@ void generate_sample_sequence( rng_t *random, char *sequence, unsigned long seq_
 
 	/* Copy sample */
 	unsigned long ind; 
+	#pragma omp parallel for
 	for( ind=0; ind<length; ind++ )
 		pattern[ind] = sequence[ind+location];
 }
