@@ -36,11 +36,14 @@
  */
 void increment_matches( int pat, unsigned long *pat_found, long *pat_length, int *seq_matches ) {
 	int ind;	
-	for( ind=0; ind<pat_length[pat]; ind++) {
-		if ( seq_matches[ pat_found[pat] + ind ] == NOT_FOUND )
-			seq_matches[ pat_found[pat] + ind ] = 0;
+  int start_index=pat_found[pat];
+  int end_index=start_index+pat_length[pat];
+
+	for( ind=start_index; ind<end_index; ind++) {
+		if ( seq_matches[ ind ] == NOT_FOUND )
+			seq_matches[ ind ] = 0;
 		else
-			seq_matches[ pat_found[pat] + ind ] ++;
+			seq_matches[ ind ] ++;
 	}
 }
 /*
@@ -346,17 +349,24 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
-	for( ind=0; ind<pat_number; ind++) {
-		pat_found[ind] = NOT_FOUND;
-	}
-	for( ind=0; ind<seq_length; ind++) {
-		seq_matches[ind] = 0;
-		seq_longest[ind] = 0;
-	}
+  #pragma omp parallel private(ind)
+  {
+    #pragma omp for
+    for( ind=0; ind<pat_number; ind++) {
+      pat_found[ind] = NOT_FOUND;
+    }
+
+    #pragma omp for
+    for( ind=0; ind<seq_length; ind++) {
+      seq_matches[ind] = 0;
+      seq_longest[ind] = 0;
+    }
+  }
 
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
+
 	for( pat=0; pat < pat_number; pat++ ) {
 
 		/* 5.1. For each posible starting position */
@@ -383,13 +393,17 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* 6. Annotate the index of the longest pattern matched on each position */
+  unsigned long pat_found_pat;
+  unsigned long pat_length_pat;
 	for( ind=0; ind < seq_length; ind++) {
 		seq_longest[ind] = 0;
 		for( pat=0; pat<pat_number; pat++ ) {
-			if ( pat_found[pat] != NOT_FOUND )
-				if ( pat_found[pat] <= ind && ind < pat_found[pat] + pat_length[pat] )
-					if ( seq_longest[ind] < pat_length[pat] )
-						seq_longest[ind] = pat_length[pat];
+      pat_found_pat=pat_found[pat];
+      pat_length_pat=pat_length[pat];
+			if ( pat_found_pat != NOT_FOUND )
+				if ( pat_found_pat <= ind && ind < pat_found_pat + pat_length_pat )
+					if ( seq_longest[ind] < pat_length_pat )
+						seq_longest[ind] = pat_length_pat;
 		}
 	}
 
@@ -397,17 +411,29 @@ int main(int argc, char *argv[]) {
 	unsigned long checksum_matches = 0;
 	unsigned long checksum_longest = 0;
 	unsigned long checksum_found = 0;
-	for( ind=0; ind < pat_number; ind++) {
-		if ( pat_found[ind] != NOT_FOUND )
-			checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
-	}
-	for( ind=0; ind < seq_length; ind++) {
-		if ( seq_matches[ind] != NOT_FOUND )
-			checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
-	}
-	for( ind=0; ind < seq_length; ind++) {
-		checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
-	}
+  
+  #pragma omp parallel private(ind) reduction(+:checksum_found,checksum_matches,checksum_longest)
+  {
+    #pragma omp for 
+    for( ind=0; ind < pat_number; ind++) {
+      if ( pat_found[ind] != NOT_FOUND )
+        checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
+    }
+
+    #pragma omp for 
+    for( ind=0; ind < seq_length; ind++) {
+      if ( seq_matches[ind] != NOT_FOUND )
+        checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
+    }
+
+    #pragma omp for  
+    for( ind=0; ind < seq_length; ind++) {
+      checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
+    }
+  }
+  checksum_found=checksum_found%CHECKSUM_MAX;
+  checksum_matches=checksum_matches%CHECKSUM_MAX;
+  checksum_longest=checksum_longest%CHECKSUM_MAX;
 
 /*
  *
