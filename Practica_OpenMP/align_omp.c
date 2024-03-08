@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
 	/* 4. Initialize ancillary structures */
   #pragma omp parallel private(ind)
   {
-    #pragma omp for
+    #pragma omp for nowait
     for( ind=0; ind<pat_number; ind++) {
       pat_found[ind] = NOT_FOUND;
     }
@@ -367,6 +367,7 @@ int main(int argc, char *argv[]) {
 	unsigned long start;
 	unsigned long pat;
 
+  #pragma omp parallel for private(start,ind) reduction(+:pat_matches)
 	for( pat=0; pat < pat_number; pat++ ) {
 
 		/* 5.1. For each posible starting position */
@@ -375,9 +376,11 @@ int main(int argc, char *argv[]) {
 			/* 5.1.1. For each pattern element */
 			for( ind=0; ind<pat_length[pat]; ind++) {
 				/* Stop this test when different nucleotids are found */
-				if ( sequence[start + ind] != pattern[pat][ind] ) break;
+
+				if ( sequence[start+ind] != pattern[pat][ind] ) break;
 			}
 			/* 5.1.2. Check if the loop ended with a match */
+      
 			if ( ind == pat_length[pat] ) {
 				pat_matches++;
 				pat_found[pat] = start;
@@ -388,6 +391,7 @@ int main(int argc, char *argv[]) {
 		/* 5.2. Pattern found */
 		if ( pat_found[pat] != NOT_FOUND ) {
 			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
+      #pragma omp critical
 			increment_matches( pat, pat_found, pat_length, seq_matches );
 		}
 	}
@@ -395,17 +399,22 @@ int main(int argc, char *argv[]) {
 	/* 6. Annotate the index of the longest pattern matched on each position */
   unsigned long pat_found_pat;
   unsigned long pat_length_pat;
-	for( ind=0; ind < seq_length; ind++) {
-		seq_longest[ind] = 0;
-		for( pat=0; pat<pat_number; pat++ ) {
+
+
+  #pragma omp parallel for private(pat)
+  for( ind=0; ind < seq_length; ind++) {
+    seq_longest[ind] = 0;
+
+    for( pat=0; pat<pat_number; pat++ ) {
       pat_found_pat=pat_found[pat];
       pat_length_pat=pat_length[pat];
-			if ( pat_found_pat != NOT_FOUND )
-				if ( pat_found_pat <= ind && ind < pat_found_pat + pat_length_pat )
-					if ( seq_longest[ind] < pat_length_pat )
-						seq_longest[ind] = pat_length_pat;
-		}
-	}
+
+      if ( pat_found_pat != NOT_FOUND )
+        if ( pat_found_pat <= ind && ind < pat_found_pat + pat_length_pat )
+          if ( seq_longest[ind] < pat_length_pat )
+            seq_longest[ind] = pat_length_pat;
+    }
+  }
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
