@@ -34,16 +34,14 @@
  * START HERE: DO NOT CHANGE THE CODE ABOVE THIS POINT
  *
  */
-void increment_matches( int pat, unsigned long *pat_found, long *pat_length, int *seq_matches ) {
+//void increment_matches( int pat, unsigned long *pat_found, long *pat_length, int *seq_matches ) {
+void increment_matches( int start_index, int end_index, int *seq_matches ) {
 	int ind;	
-  int start_index=pat_found[pat];
-  int end_index=start_index+pat_length[pat];
-
 	for( ind=start_index; ind<end_index; ind++) {
-		if ( seq_matches[ ind ] != NOT_FOUND )
+//		if ( seq_matches[ ind ] != NOT_FOUND )
 			seq_matches[ ind ]  ++;
-		else
-			seq_matches[ ind ]= 0;
+//		else
+//			seq_matches[ ind ]= 0;
 	}
 }
 /*
@@ -349,7 +347,7 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
-  #pragma omp parallel private(ind)
+/*  #pragma omp parallel private(ind)
   {
     #pragma omp for 
     for( ind=0; ind<pat_number; ind++) {
@@ -357,19 +355,23 @@ int main(int argc, char *argv[]) {
     }
 
     #pragma omp for
-    for( ind=0; ind<seq_length; ind++) {
+*/
+	unsigned long start;
+	unsigned long pat;
+#pragma omp parallel private(start,ind) //reduction(+:pat_matches) 
+	{
+	#pragma omp for ordered schedule(guided)
+      for( ind=0; ind<seq_length; ind++) {
       seq_matches[ind] = 0;
       seq_longest[ind] = 0;
     }
-  }
+//  }
 
 	/* 5. Search for each pattern */
-	unsigned long start;
-	unsigned long pat;
 
-  #pragma omp parallel for private(start,ind) reduction(+:pat_matches) 
+  #pragma omp for reduction(+:pat_matches)//private(start,ind) reduction(+:pat_matches) 
 	for( pat=0; pat < pat_number; pat++ ) {
-
+		pat_found[pat] = NOT_FOUND;
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
 
@@ -383,39 +385,31 @@ int main(int argc, char *argv[]) {
       
 			if ( ind == pat_length[pat] ) {
 				pat_found[pat] = start;
-				break;
-			}
-		}
 
-		/* 5.2. Pattern found */
-		if ( pat_found[pat] != NOT_FOUND ) {
-			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-				pat_matches++;
-      #pragma omp critical
-			increment_matches( pat, pat_found, pat_length, seq_matches );
-		}
+		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
+		     	unsigned long pat_length_pat;
+			pat_matches++;
+				
+			#pragma omp critical
+			increment_matches(start, pat_length[pat]+start, seq_matches );
 	/* 6. Annotate the index of the longest pattern matched on each position */
-  unsigned long pat_found_pat;
-  unsigned long pat_length_pat;
 
+			 for( ind=0; ind < seq_length; ind++) {
 
-//	 #pragma omp parallel for private(pat) 
-	 for( ind=0; ind < seq_length; ind++) {
-//	   seq_longest[ind] = 0;
-
-//	   for( pat=0; pat<pat_number; pat++ ) {
-	     pat_found_pat=pat_found[pat];
-	     pat_length_pat=pat_length[pat];
-
-	     if ( pat_found_pat != NOT_FOUND )
-	         if ( seq_longest[ind] < pat_length_pat )
-	       if ( pat_found_pat <= ind) 
-            if(ind < pat_found_pat + pat_length_pat )
-	           seq_longest[ind] = pat_length_pat;
-	   }
-	 
+			     pat_length_pat=pat_length[pat];
+			     
+				if ( seq_longest[ind] < pat_length_pat )
+				   if (start <= ind) 
+				     if(ind <start + pat_length_pat )
+				           seq_longest[ind] = pat_length_pat;
+			
+			}
+				break;
+		}
 	}
 
+	}
+	}
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
@@ -424,13 +418,13 @@ int main(int argc, char *argv[]) {
   
   #pragma omp parallel private(ind) reduction(+:checksum_found,checksum_matches,checksum_longest)
   {
-    #pragma omp for 
-    for( ind=0; ind < pat_number; ind++) {
+    #pragma omp for ordered schedule (guided)
+    for( ind=0; ind < pat_number; ind++) 
       if ( pat_found[ind] != NOT_FOUND )
         checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
-    }
+    
 
-    #pragma omp for  
+    #pragma omp for ordered schedule (guided) 
     for( ind=0; ind < seq_length; ind++) {
       checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
       if ( seq_matches[ind] != NOT_FOUND )
