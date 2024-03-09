@@ -349,6 +349,9 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
+
+	// ¿Hemos probado con sections?
+	// ¿Probar schedule()?
   #pragma omp parallel private(ind)
   {
     #pragma omp for nowait
@@ -358,8 +361,8 @@ int main(int argc, char *argv[]) {
 
     #pragma omp for
     for( ind=0; ind<seq_length; ind++) {
-      seq_matches[ind] = 0;
-      seq_longest[ind] = 0;
+      seq_matches[ind] = 0; //¿Hace falta inicializarlo? La función increment_matches es la que lo útiliza. Solo hace falta si suponemos que la memoria que se nos asigna no contiene ya 0s
+//      seq_longest[ind] = 0; //Me parece que no hace falta inicializarlo aquí
     }
   }
 
@@ -370,6 +373,7 @@ int main(int argc, char *argv[]) {
   #pragma omp parallel for private(start,ind) reduction(+:pat_matches)
 	for( pat=0; pat < pat_number; pat++ ) {
 
+		//¿Hemos cambiado el orden de los bucles? NO funciona
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
 
@@ -403,9 +407,10 @@ int main(int argc, char *argv[]) {
 
   #pragma omp parallel for private(pat)
   for( ind=0; ind < seq_length; ind++) {
-    seq_longest[ind] = 0;
+    //seq_longest[ind] = 0; //O quitas esta o la de arriba, comprobar cual da mejor resultado
 
     for( pat=0; pat<pat_number; pat++ ) {
+	    // Se puede sustituir estas asignaciones en el código (igual ya se hace con -O3)
       pat_found_pat=pat_found[pat];
       pat_length_pat=pat_length[pat];
 
@@ -421,6 +426,7 @@ int main(int argc, char *argv[]) {
 	unsigned long checksum_longest = 0;
 	unsigned long checksum_found = 0;
   
+	//¿Usar secciones?¿Schedule?
   #pragma omp parallel private(ind) reduction(+:checksum_found,checksum_matches,checksum_longest)
   {
     #pragma omp for 
