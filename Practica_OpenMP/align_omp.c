@@ -367,7 +367,7 @@ int main(int argc, char *argv[]) {
 	unsigned long start;
 	unsigned long pat;
 
-  #pragma omp parallel for private(start,ind) reduction(+:pat_matches)
+  #pragma omp parallel for private(start,ind) reduction(+:pat_matches) 
 	for( pat=0; pat < pat_number; pat++ ) {
 
 		/* 5.1. For each posible starting position */
@@ -390,22 +390,20 @@ int main(int argc, char *argv[]) {
 		/* 5.2. Pattern found */
 		if ( pat_found[pat] != NOT_FOUND ) {
 			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
+				pat_matches++;
       #pragma omp critical
 			increment_matches( pat, pat_found, pat_length, seq_matches );
-				pat_matches++;
 		}
-	}
-
 	/* 6. Annotate the index of the longest pattern matched on each position */
   unsigned long pat_found_pat;
   unsigned long pat_length_pat;
 
 
-	 #pragma omp parallel for private(pat) 
+//	 #pragma omp parallel for private(pat) 
 	 for( ind=0; ind < seq_length; ind++) {
-	   seq_longest[ind] = 0;
+//	   seq_longest[ind] = 0;
 
-	   for( pat=0; pat<pat_number; pat++ ) {
+//	   for( pat=0; pat<pat_number; pat++ ) {
 	     pat_found_pat=pat_found[pat];
 	     pat_length_pat=pat_length[pat];
 
@@ -415,7 +413,9 @@ int main(int argc, char *argv[]) {
             if(ind < pat_found_pat + pat_length_pat )
 	           seq_longest[ind] = pat_length_pat;
 	   }
-	 }
+	 
+	}
+
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
