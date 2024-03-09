@@ -40,10 +40,10 @@ void increment_matches( int pat, unsigned long *pat_found, long *pat_length, int
   int end_index=start_index+pat_length[pat];
 
 	for( ind=start_index; ind<end_index; ind++) {
-		if ( seq_matches[ ind ] == NOT_FOUND )
-			seq_matches[ ind ] = 0;
+		if ( seq_matches[ ind ] != NOT_FOUND )
+			seq_matches[ ind ]  ++;
 		else
-			seq_matches[ ind ] ++;
+			seq_matches[ ind ]= 0;
 	}
 }
 /*
@@ -382,7 +382,6 @@ int main(int argc, char *argv[]) {
 			/* 5.1.2. Check if the loop ended with a match */
       
 			if ( ind == pat_length[pat] ) {
-				pat_matches++;
 				pat_found[pat] = start;
 				break;
 			}
@@ -393,6 +392,7 @@ int main(int argc, char *argv[]) {
 			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
       #pragma omp critical
 			increment_matches( pat, pat_found, pat_length, seq_matches );
+				pat_matches++;
 		}
 	}
 
@@ -401,7 +401,7 @@ int main(int argc, char *argv[]) {
   unsigned long pat_length_pat;
 
 
-	 #pragma omp parallel for private(pat)
+	 #pragma omp parallel for private(pat) 
 	 for( ind=0; ind < seq_length; ind++) {
 	   seq_longest[ind] = 0;
 
@@ -411,7 +411,8 @@ int main(int argc, char *argv[]) {
 
 	     if ( pat_found_pat != NOT_FOUND )
 	         if ( seq_longest[ind] < pat_length_pat )
-	       if ( pat_found_pat <= ind && ind < pat_found_pat + pat_length_pat )
+	       if ( pat_found_pat <= ind) 
+            if(ind < pat_found_pat + pat_length_pat )
 	           seq_longest[ind] = pat_length_pat;
 	   }
 	 }
