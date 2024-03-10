@@ -356,6 +356,7 @@ int main(int argc, char *argv[]) {
                               std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
                     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 */
+		     	unsigned long pat_length_pat;
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
 	#pragma omp for //schedule(guided)
@@ -391,7 +392,6 @@ int main(int argc, char *argv[]) {
 		//	#pragma omp critical
 			{
 
-		     	unsigned long pat_length_pat;
 			 pat_length_pat=pat_length[pat];
 			 for( ind=start; ind < start + pat_length_pat; ind++) {
 				if ( seq_longest[ind] < pat_length_pat )
