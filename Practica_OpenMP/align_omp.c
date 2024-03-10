@@ -352,13 +352,13 @@ int main(int argc, char *argv[]) {
 	int mat = 0, fou = 0;
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
-	#pragma omp for schedule(guided)
+	#pragma omp for //schedule(guided)
       for( ind=0; ind<seq_length; ind++) 
       seq_longest[ind] = 0;
 
 	/* 5. Search for each pattern */
 
-  #pragma omp for reduction(+:pat_matches, mat, fou) schedule(dynamic) private(start,ind) //reduction(+:pat_matches) 
+  #pragma omp for reduction(+:pat_matches, mat, fou) schedule(dynamic) private(start,ind) 
 	for( pat=0; pat < pat_number; pat++ ) {
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
@@ -384,12 +384,8 @@ int main(int argc, char *argv[]) {
 	/* 6. Annotate the index of the longest pattern matched on each position */
 
 			 pat_length_pat=pat_length[pat];
-			 for( ind=0; ind < seq_length; ind++) {
-
-			     
+			 for( ind=start; ind < start + pat_length_pat; ind++) {
 				if ( seq_longest[ind] < pat_length_pat )
-				   if (start <= ind) 
-				     if(ind <start + pat_length_pat )
 				           seq_longest[ind] = pat_length_pat;
 			
 			}
@@ -402,12 +398,14 @@ int main(int argc, char *argv[]) {
 
 	/* 7. Check sums */
 	unsigned long checksum_longest = 0;
-    #pragma omp parallel for schedule (guided)  reduction(+:checksum_longest)
+    #pragma omp parallel for schedule (guided) reduction(+:checksum_longest)
     for( ind=0; ind < seq_length; ind++) {
       checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
     }
   unsigned long checksum_found = fou%CHECKSUM_MAX;
+  checksum_found = checksum_found%CHECKSUM_MAX;
   unsigned long checksum_matches = mat%CHECKSUM_MAX;
+  checksum_matches = mat%CHECKSUM_MAX;
   checksum_longest=checksum_longest%CHECKSUM_MAX;
 
 /*
