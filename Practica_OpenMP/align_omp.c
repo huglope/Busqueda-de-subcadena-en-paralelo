@@ -347,31 +347,21 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
-/*  #pragma omp parallel private(ind)
-  {
-    #pragma omp for 
-    for( ind=0; ind<pat_number; ind++) {
-      pat_found[ind] = NOT_FOUND;
-    }
-
-    #pragma omp for
-*/
 	unsigned long start;
 	unsigned long pat;
-#pragma omp parallel private(start,ind) //reduction(+:pat_matches) 
+	int mat = 0, fou = 0;
+#pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
-	#pragma omp for ordered schedule(guided)
+	#pragma omp for schedule(guided)
       for( ind=0; ind<seq_length; ind++) {
-      seq_matches[ind] = 0;
       seq_longest[ind] = 0;
     }
 //  }
 
 	/* 5. Search for each pattern */
 
-  #pragma omp for reduction(+:pat_matches)//private(start,ind) reduction(+:pat_matches) 
+  #pragma omp for reduction(+:pat_matches, mat, fou) schedule(dynamic) private(start,ind) //reduction(+:pat_matches) 
 	for( pat=0; pat < pat_number; pat++ ) {
-		pat_found[pat] = NOT_FOUND;
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
 
@@ -384,19 +374,24 @@ int main(int argc, char *argv[]) {
 			/* 5.1.2. Check if the loop ended with a match */
       
 			if ( ind == pat_length[pat] ) {
-				pat_found[pat] = start;
 
 		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
 		     	unsigned long pat_length_pat;
 			pat_matches++;
 				
-			#pragma omp critical
-			increment_matches(start, pat_length[pat]+start, seq_matches );
+			#pragma omp critical  //si lo quito va peor 0.0 
+			{
+#pragma omp atomic
+			fou  += start;
+			for( pat_length_pat =start; pat_length_pat <pat_length[pat]+start; pat_length_pat++) 
+#pragma omp atomic
+				mat++;
+			}
 	/* 6. Annotate the index of the longest pattern matched on each position */
 
+			     pat_length_pat=pat_length[pat];
 			 for( ind=0; ind < seq_length; ind++) {
 
-			     pat_length_pat=pat_length[pat];
 			     
 				if ( seq_longest[ind] < pat_length_pat )
 				   if (start <= ind) 
@@ -412,27 +407,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* 7. Check sums */
-	unsigned long checksum_matches = 0;
 	unsigned long checksum_longest = 0;
-	unsigned long checksum_found = 0;
-  
-  #pragma omp parallel private(ind) reduction(+:checksum_found,checksum_matches,checksum_longest)
-  {
-    #pragma omp for ordered schedule (guided)
-    for( ind=0; ind < pat_number; ind++) 
-      if ( pat_found[ind] != NOT_FOUND )
-        checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
-    
-
-    #pragma omp for ordered schedule (guided) 
+    #pragma omp parallel for schedule (guided)  reduction(+:checksum_longest)
     for( ind=0; ind < seq_length; ind++) {
       checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
-      if ( seq_matches[ind] != NOT_FOUND )
-        checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
     }
-  }
-  checksum_found=checksum_found%CHECKSUM_MAX;
-  checksum_matches=checksum_matches%CHECKSUM_MAX;
+  unsigned long checksum_found = fou%CHECKSUM_MAX;
+  unsigned long checksum_matches = mat%CHECKSUM_MAX;
   checksum_longest=checksum_longest%CHECKSUM_MAX;
 
 /*
