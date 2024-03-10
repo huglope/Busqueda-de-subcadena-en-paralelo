@@ -349,11 +349,11 @@ int main(int argc, char *argv[]) {
 	/* 4. Initialize ancillary structures */
 	unsigned long start;
 	unsigned long pat;
-	int mat = 0, fou = 0;
+	unsigned long  mat = 0, fou = 0;
 
 //	omp_set_num_threads(omp_get_num_threads());
 /*#pragma omp declare reduction(vec_max : int* : omp_out = max(omp_out. omp_in)
-/*                              std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
+                              std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
                     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 */
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
@@ -380,7 +380,6 @@ int main(int argc, char *argv[]) {
 			if ( ind == pat_length[pat] ) {
 
 		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-		     	unsigned long pat_length_pat;
 			#pragma omp atomic
 			pat_matches++;
 			#pragma omp atomic
@@ -389,11 +388,16 @@ int main(int argc, char *argv[]) {
 			mat+= pat_length[pat];
 	/* 6. Annotate the index of the longest pattern matched on each position */
 
+		//	#pragma omp critical
+			{
+
+		     	unsigned long pat_length_pat;
 			 pat_length_pat=pat_length[pat];
 			 for( ind=start; ind < start + pat_length_pat; ind++) {
 				if ( seq_longest[ind] < pat_length_pat )
 				           seq_longest[ind] = pat_length_pat;
 			
+			}
 			}
 				break;
 		}
