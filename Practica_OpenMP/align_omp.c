@@ -353,10 +353,8 @@ int main(int argc, char *argv[]) {
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
 	#pragma omp for schedule(guided)
-      for( ind=0; ind<seq_length; ind++) {
+      for( ind=0; ind<seq_length; ind++) 
       seq_longest[ind] = 0;
-    }
-//  }
 
 	/* 5. Search for each pattern */
 
@@ -377,19 +375,15 @@ int main(int argc, char *argv[]) {
 
 		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
 		     	unsigned long pat_length_pat;
+			#pragma omp atomic
 			pat_matches++;
-				
-			#pragma omp critical  //si lo quito va peor 0.0 
-			{
-#pragma omp atomic
+			#pragma omp atomic
 			fou  += start;
-			for( pat_length_pat =start; pat_length_pat <pat_length[pat]+start; pat_length_pat++) 
-#pragma omp atomic
-				mat++;
-			}
+			#pragma omp atomic
+			mat+= pat_length[pat];
 	/* 6. Annotate the index of the longest pattern matched on each position */
 
-			     pat_length_pat=pat_length[pat];
+			 pat_length_pat=pat_length[pat];
 			 for( ind=0; ind < seq_length; ind++) {
 
 			     
