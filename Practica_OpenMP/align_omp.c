@@ -358,7 +358,7 @@ int main(int argc, char *argv[]) {
 
 	/* 5. Search for each pattern */
 
-  #pragma omp for reduction(+:pat_matches, mat, fou) schedule(dynamic) private(start,ind) 
+  #pragma omp for reduction(+:pat_matches, mat, fou)  schedule(dynamic) private(start,ind) //reduction(max:seq_longest[seq_length-2])
 	for( pat=0; pat < pat_number; pat++ ) {
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
