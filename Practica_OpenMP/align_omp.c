@@ -350,6 +350,12 @@ int main(int argc, char *argv[]) {
 	unsigned long start;
 	unsigned long pat;
 	int mat = 0, fou = 0;
+
+//	omp_set_num_threads(omp_get_num_threads());
+/*#pragma omp declare reduction(vec_max : int* : omp_out = max(omp_out. omp_in)
+/*                              std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
+                    initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
+*/
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
 	#pragma omp for //schedule(guided)
@@ -358,7 +364,7 @@ int main(int argc, char *argv[]) {
 
 	/* 5. Search for each pattern */
 
-  #pragma omp for reduction(+:pat_matches, mat, fou)  schedule(dynamic) private(start,ind) //reduction(max:seq_longest[seq_length-2])
+  #pragma omp for reduction(+:pat_matches, mat, fou)  schedule(dynamic) private(start,ind) //reduction(max: seq_longest*)
 	for( pat=0; pat < pat_number; pat++ ) {
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
