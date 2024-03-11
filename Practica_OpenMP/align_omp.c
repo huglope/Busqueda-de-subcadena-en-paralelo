@@ -407,8 +407,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* 7. Check sums */
-	unsigned int checksum_longest = 0;
-    #pragma omp parallel for reduction(+:checksum_longest)
+	unsigned long checksum_longest = 0;
+    #pragma omp parallel for schedule (guided) reduction(+:checksum_longest)
     for( ind=0; ind < seq_length; ind++) {
       checksum_longest += seq_longest[ind];
     }
