@@ -414,7 +414,7 @@ int main(int argc, char *argv[]) {
     }
   unsigned long checksum_found = fou%CHECKSUM_MAX;
   checksum_found = checksum_found%CHECKSUM_MAX;
-  unsigned long checksum_matches = mat%CHECKSUM_MAX;
+  unsigned long checksum_matches;
   checksum_matches = mat%CHECKSUM_MAX;
   checksum_longest=checksum_longest%CHECKSUM_MAX;
 
