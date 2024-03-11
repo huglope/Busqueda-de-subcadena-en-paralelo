@@ -350,16 +350,16 @@ int main(int argc, char *argv[]) {
 	unsigned long start;
 	unsigned long pat;
 	unsigned long  mat = 0, fou = 0;
+	unsigned long checksum_longest = 0;
 
 //	omp_set_num_threads(omp_get_num_threads());
 /*#pragma omp declare reduction(vec_max : int* : omp_out = max(omp_out. omp_in)
                               std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
                     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 */
-		     	unsigned long pat_length_pat;
 #pragma omp parallel //private(start,ind) //reduction(+:pat_matches) 
 	{
-	#pragma omp for //schedule(guided)
+	#pragma omp section //schedule(guided)
       for( ind=0; ind<seq_length; ind++) 
       seq_longest[ind] = 0;
 
@@ -381,22 +381,16 @@ int main(int argc, char *argv[]) {
 			if ( ind == pat_length[pat] ) {
 
 		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			#pragma omp atomic
 			pat_matches++;
-			#pragma omp atomic
-			fou  += start;
-			#pragma omp atomic
-			mat+= pat_length[pat];
+			fou  = (start+fou) %CHECKSUM_MAX;
+			mat =(mat+ pat_length[pat])%CHECKSUM_MAX;
 	/* 6. Annotate the index of the longest pattern matched on each position */
 
-		//	#pragma omp critical
+			#pragma omp critical
 			{
-
-			 pat_length_pat=pat_length[pat];
-			 for( ind=start; ind < start + pat_length_pat; ind++) {
-				if ( seq_longest[ind] < pat_length_pat )
-				           seq_longest[ind] = pat_length_pat;
-			
+			 for( ind=start; ind < start + pat_length[pat]; ind++) {
+				if ( seq_longest[ind] < pat_length[pat] )
+				           seq_longest[ind] = pat_length[pat];
 			}
 			}
 				break;
@@ -404,14 +398,14 @@ int main(int argc, char *argv[]) {
 	}
 
 	}
-	}
+	
 
 	/* 7. Check sums */
-	unsigned long checksum_longest = 0;
-    #pragma omp parallel for schedule (guided) reduction(+:checksum_longest)
+    #pragma omp parallel for reduction(+:checksum_longest)
     for( ind=0; ind < seq_length; ind++) {
       checksum_longest += seq_longest[ind];
     }
+   }
   unsigned long checksum_found = fou%CHECKSUM_MAX;
   unsigned long checksum_matches = mat%CHECKSUM_MAX;
   checksum_longest=checksum_longest%CHECKSUM_MAX;
