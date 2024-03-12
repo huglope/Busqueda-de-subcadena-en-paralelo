@@ -349,6 +349,7 @@ int main(int argc, char *argv[]) {
 	/* 4. Initialize ancillary structures */
 	unsigned long start, pat;
 	unsigned long  mat = 0, fou = 0;
+	unsigned long checksum_longest = 0;
 
 
 	//	omp_set_num_threads(omp_get_num_threads());
@@ -396,7 +397,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	}
-#pragma omp parallel for
+#pragma omp parallel for reduction(+:checksum_longest)
 	 for( ind=0; ind < seq_length; ind++) {
                 seq_longest[ind] = 0;
                 for( pat=0; pat<pat_number; pat++ ) {
@@ -405,15 +406,12 @@ int main(int argc, char *argv[]) {
                                 if ( pat_found[pat] <= ind && ind < pat_found[pat] + pat_length[pat] )
                                                 seq_longest[ind] = pat_length[pat];
                 }
+      		checksum_longest = (checksum_longest + seq_longest[ind]) %CHECKSUM_MAX;
+		
         }
 
 
 	/* 7. Check sums */
-	unsigned long checksum_longest = 0;
-    #pragma omp parallel for reduction(+:checksum_longest)
-    for( ind=0; ind < seq_length; ind++) {
-      checksum_longest = (checksum_longest + seq_longest[ind]) %CHECKSUM_MAX;
-    }
   unsigned long checksum_found = fou%CHECKSUM_MAX;
   unsigned long checksum_matches = mat%CHECKSUM_MAX;
   checksum_longest=checksum_longest%CHECKSUM_MAX;
