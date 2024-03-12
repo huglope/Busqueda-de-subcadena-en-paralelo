@@ -350,6 +350,7 @@ int main(int argc, char *argv[]) {
 	unsigned long start, pat;
 	unsigned long  mat = 0, fou = 0;
 	unsigned long checksum_longest = 0;
+  int indi;
 
 
 	//	omp_set_num_threads(omp_get_num_threads());
@@ -363,52 +364,45 @@ int main(int argc, char *argv[]) {
 */
 	/* 5. Search for each pattern */
 
-  #pragma omp parallel for reduction(+:pat_matches, mat, fou)  schedule(dynamic) private(start,ind) //reduction(max: seq_longest*)
-	for( pat=0; pat < pat_number; pat++ ) {
-		pat_found[pat] = NOT_FOUND;
-		/* 5.1. For each posible starting position */
-		for( start=0; start <= seq_length - pat_length[pat]; start++) {
-
-			/* 5.1.1. For each pattern element */
-			for(ind= 0; ind<pat_length[pat] ; ind++){
-				/* Stop this test when different nucleotids are found */
-
-				if ( sequence[start+ind] != pattern[pat][ind] ) break;
-			}
-			/* 5.1.2. Check if the loop ended with a match */
-      
-			if ( ind  ==  pat_length[pat]) {
-	
-		/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			pat_found[pat] = start;
-			pat_matches++;
-			fou  = (start+fou) %CHECKSUM_MAX;
-			mat =(mat+ pat_length[pat])%CHECKSUM_MAX;
-	/* 6. Annotate the index of the longest pattern matched on each position */
-
-		/*	{
-			 for( ind=start; ind < start + pat_length[pat]; ind++) {
-				if ( seq_longest[ind] < pat_length[pat] )
-				           seq_longest[ind] = pat_length[pat];
-			}
-			}*/
-				break;
-		}
-	}
-
-	}
-#pragma omp parallel for reduction(+:checksum_longest)
-	 for( ind=0; ind < seq_length; ind++) {
-                seq_longest[ind] = 0;
-                for( pat=0; pat<pat_number; pat++ ) {
-                        if ( pat_found[pat] != NOT_FOUND )
-                            if ( seq_longest[ind] < pat_length[pat] )
-                                if ( pat_found[pat] <= ind && ind < pat_found[pat] + pat_length[pat] )
-                                                seq_longest[ind] = pat_length[pat];
-                }
-      		checksum_longest = (checksum_longest + seq_longest[ind]) %CHECKSUM_MAX;
-		
+  #pragma omp parallel private(start,ind,pat) //reduction(max: seq_longest*)
+  {
+    #pragma omp for reduction(+:pat_matches,mat,fou) schedule(dynamic)
+    for( pat=0; pat < pat_number; pat++ ) {
+      pat_found[pat] = NOT_FOUND;
+      /* 5.1. For each posible starting position */
+      for( start=0; start <= seq_length - pat_length[pat]; start++) {
+        /* 5.1.1. For each pattern element */
+        for(ind= 0; ind<pat_length[pat] ; ind++){
+          /* Stop this test when different nucleotids are found */
+          if ( sequence[start+ind] != pattern[pat][ind] ) break;
         }
+        /* 5.1.2. Check if the loop ended with a match */
+        if ( ind  ==  pat_length[pat]) {
+        /* 4.2.1. Increment the number of pattern matches on the sequence positions */
+          pat_found[pat] = start;
+          pat_matches++;
+          fou  = (start+fou) %CHECKSUM_MAX;
+          mat =(mat+ pat_length[pat])%CHECKSUM_MAX;
+      /* 6. Annotate the index of the longest pattern matched on each position */
+            break;
+        }
+      }
+    }
+
+    #pragma omp for reduction(+:checksum_longest)
+    for( indi=0; indi < seq_length; indi++) {
+                  seq_longest[indi] = 0;
+                  for( pat=0; pat<pat_number; pat++ ) {
+                          if ( pat_found[pat] != NOT_FOUND )
+                              if ( seq_longest[indi] < pat_length[pat] )
+                                  if ( pat_found[pat] <= indi) 
+                                    if(indi < pat_found[pat] + pat_length[pat] )
+                                                  seq_longest[indi] = pat_length[pat];
+                  }
+      checksum_longest = (checksum_longest + seq_longest[indi]) %CHECKSUM_MAX;
+    }
+
+  }
 
 
 	/* 7. Check sums */
