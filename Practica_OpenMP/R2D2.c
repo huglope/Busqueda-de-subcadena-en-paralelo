@@ -347,26 +347,12 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
-	unsigned long start, pat;
-	unsigned long  mat = 0, fou = 0;
-	unsigned long checksum_longest = 0;
-  int indi;
+	unsigned long start, pat, indi;
+	unsigned long  checksum_matches = 0, checksum_found = 0, checksum_longest = 0;
 
-
-	//	omp_set_num_threads(omp_get_num_threads());
-/*#pragma omp declare reduction(vec_max : int* : omp_out = max(omp_out. omp_in)
-                              std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::max<int>())) \
-                    initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
-*/
-/*	#pragma omp parallel for //schedule(guided)
-      for( ind=0; ind<seq_length; ind++) 
-      seq_longest[ind] = 0;
-*/
-	/* 5. Search for each pattern */
-
-  #pragma omp parallel private(start,ind,pat) //reduction(max: seq_longest*)
+  #pragma omp parallel private(start,ind,pat)
   {
-    #pragma omp for reduction(+:pat_matches,mat,fou) schedule(dynamic)
+    #pragma omp for reduction(+:pat_matches,checksum_matches,checksum_found) schedule(dynamic)
     for( pat=0; pat < pat_number; pat++ ) {
       pat_found[pat] = NOT_FOUND;
       /* 5.1. For each posible starting position */
@@ -380,16 +366,16 @@ int main(int argc, char *argv[]) {
         if ( ind  ==  pat_length[pat]) {
         /* 4.2.1. Increment the number of pattern matches on the sequence positions */
           pat_found[pat] = start;
+          checksum_matches =(checksum_matches+ pat_length[pat])& (CHECKSUM_MAX-1);
+          checksum_found  = (start+checksum_found) & (CHECKSUM_MAX-1);
+	  #pragma omp atomic
           pat_matches++;
-          fou  = (start+fou) %CHECKSUM_MAX;
-          mat =(mat+ pat_length[pat])%CHECKSUM_MAX;
-      /* 6. Annotate the index of the longest pattern matched on each position */
             break;
         }
       }
     }
 
-    #pragma omp for reduction(+:checksum_longest)
+    #pragma omp for reduction(+:checksum_longest) schedule(guided)
     for( indi=0; indi < seq_length; indi++) {
                   seq_longest[indi] = 0;
                   for( pat=0; pat<pat_number; pat++ ) {
@@ -399,16 +385,16 @@ int main(int argc, char *argv[]) {
                                     if(indi < pat_found[pat] + pat_length[pat] )
                                                   seq_longest[indi] = pat_length[pat];
                   }
-      checksum_longest = (checksum_longest + seq_longest[indi]) %CHECKSUM_MAX;
+      checksum_longest = (checksum_longest + seq_longest[indi]) & (CHECKSUM_MAX-1);
     }
 
   }
 
 
 	/* 7. Check sums */
-  unsigned long checksum_found = fou%CHECKSUM_MAX;
-  unsigned long checksum_matches = mat%CHECKSUM_MAX;
-  checksum_longest=checksum_longest%CHECKSUM_MAX;
+  checksum_found = checksum_found & (CHECKSUM_MAX-1);
+  checksum_matches = checksum_matches & (CHECKSUM_MAX-1);
+  checksum_longest=checksum_longest & (CHECKSUM_MAX-1);
 
 /*
  *
