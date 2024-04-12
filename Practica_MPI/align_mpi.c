@@ -336,6 +336,9 @@ int main(int argc, char *argv[]) {
 		exit( EXIT_FAILURE );
 	}
 	random = rng_new( seed );
+
+	rng_skip (&random,my_begin_seq);
+
 	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, my_size_seq);
 
 #ifdef DEBUG
@@ -379,37 +382,77 @@ int main(int argc, char *argv[]) {
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
-	for( pat=my_begin_pat; pat < my_end_pat; pat++ ) {
+	unsigned long nuevo_length;
+	int continuacion=0;
+	unsigned long ind_cont;
+	unsigned long evita_bloqueo_ind=-1;
+	MPI_Status stat1;
+	MPI_Status stat2;
 
-		/* 5.1. For each posible starting position */
-		for( start=0; start <= my_size_seq - pat_length[pat]; start++) {
-			// Da segmentation fault porque el patron puede estar entre medias de la zona asignada a cada proceso
-			// Habria que pasar lo restante de la comprobacion al siguiente proceso
-			
-			if (my_size_seq<=pat_length[pat]){
-				break;
+
+	// Recorre todos los patrones
+	// Datos relevantes:
+	// Ultimo proceso nunca envia
+	// Primer proceso nunca recibe
+	// Todos los procesos conocen todos los patrones
+    for (pat = 0; pat < pat_number; pat++) {
+        /* Iterate over possible starting positions */
+		continuacion=0;
+
+		// Recorre la secuencia correspondiente al proceso
+        for (start = 0; start < my_size_seq; start++) {
+			if (rank>0){
+				MPI_Recv(&ind_cont,1,MPI_UNSIGNED_LONG,rank-1,1,MPI_COMM_WORLD,&stat1);
+				
+				if (ind_cont!=-1){
+					continuacion=1; // Establezco que es una continuacion
+					MPI_Recv(&pat_cont,1,MPI_UNSIGNED_LONG,rank-1,2,MPI_COMM_WORLD,&stat2);
+				}
 			}
 
-			/* 5.1.1. For each pattern element */
-			for( ind=0; ind<pat_length[pat]; ind++) {
-				/* Stop this test when different nucleotids are found */
+            // Recorre cada posicion del patron
+			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
+            for (ind = ind_cont; ind < pat_length[pat]; ind++) {
 
-				if ( sequence[start + ind] != pattern[pat][ind] ) break;
-			}
-			/* 5.1.2. Check if the loop ended with a match */
-			if ( ind == pat_length[pat] ) {
-				pat_matches++;
-				pat_found[pat] = start;
-				break;
-			}
-		}
+				// Si no es el ultimo proceso
+				if (rank < (nprocs-1)){
+					// Si se sale paso el ind y el pat al siguiente proceso
+					if ((start+ind)>=my_size_seq){
+						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,rank+1,1,MPI_COMM_WORLD);
+						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,rank+1,2,MPI_COMM_WORLD);
+					}
+					else { // Mando mensaje para evitar que se quede bloquedo el siguiente proceso
+						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,rank+1,1,MPI_COMM_WORLD);
+					}
+				}
+				
+                /* Stop this test when different nucleotides are found */
+				if (continuacion==1){
+					if (sequence[start + ind] != pattern[pat_cont][ind]) break;
+				}
+				else {
+					if (sequence[start + ind] != pattern[pat][ind]) break;
+				}
+                
+            }
 
-		/* 5.2. Pattern found */
-		if ( pat_found[pat] != NOT_FOUND ) {
-			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			increment_matches( pat, pat_found, pat_length, seq_matches );
-		}
-	}
+            /* Check if the loop ended with a match */
+			// Hay que cambiar esta comprobacion
+			// Suma del ind del proceso anterior mas el del actual
+            if (ind == pat_length[pat]) {
+                pat_matches++;
+                pat_found[pat] = start;
+                break;
+            }
+        }
+
+        /* Pattern found */
+        if (pat_found[pat] != NOT_FOUND) {
+            /* Increment the number of pattern matches on the sequence positions */
+            increment_matches(pat, pat_found, pat_length, seq_matches);
+        }
+    }
+
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
