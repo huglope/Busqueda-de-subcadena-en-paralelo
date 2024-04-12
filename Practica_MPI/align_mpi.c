@@ -325,19 +325,24 @@ int main(int argc, char *argv[]) {
  *
  */
 	/* 2.1. Allocate and fill sequence */
-	char *sequence = (char *)malloc( sizeof(char) * seq_length );
+	int nprocs;
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+	unsigned long my_size_seq=(rank==nprocs-1) ? (seq_length/nprocs)+(seq_length%nprocs) : seq_length/nprocs;
+	unsigned long my_begin_seq=rank*my_size_seq;
+
+	char *sequence = (char *)malloc( sizeof(char) * my_size_seq );
 	if ( sequence == NULL ) {
-		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", seq_length );
+		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
 	random = rng_new( seed );
-	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, seq_length);
+	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, my_size_seq);
 
 #ifdef DEBUG
 	/* DEBUG: Print sequence and patterns */
 	printf("-----------------\n");
 	printf("Sequence: ");
-	for( ind=0; ind<seq_length; ind++ ) 
+	for( ind=0; ind<my_size_seq; ind++ ) 
 		printf( "%c", sequence[ind] );
 	printf("\n-----------------\n");
 	printf("Patterns: %d ( rng: %d, samples: %d )\n", pat_number, pat_rng_num, pat_samp_num );
@@ -353,31 +358,42 @@ int main(int argc, char *argv[]) {
 
 	/* 2.3.2. Other results related to the main sequence */
 	int *seq_matches;
-	seq_matches = (int *)malloc( sizeof(int) * seq_length );
+	seq_matches = (int *)malloc( sizeof(int) * my_size_seq );
 	if ( seq_matches == NULL ) {
-		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", seq_length );
+		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
 
 	/* 4. Initialize ancillary structures */
-	for( ind=0; ind<pat_number; ind++) {
+	int my_size_pat = pat_number / nprocs;
+	unsigned long my_begin_pat = rank * my_size_pat;
+	unsigned long my_end_pat = (rank == nprocs - 1) ? pat_number : my_begin_pat + my_size_pat;
+
+	for( ind=my_begin_pat; ind<my_end_pat; ind++) {
 		pat_found[ind] = NOT_FOUND;
 	}
-	for( ind=0; ind<seq_length; ind++) {
+	for( ind=0; ind<my_size_seq; ind++) {
 		seq_matches[ind] = 0;
 	}
 
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
-	for( pat=0; pat < pat_number; pat++ ) {
+	for( pat=my_begin_pat; pat < my_end_pat; pat++ ) {
 
 		/* 5.1. For each posible starting position */
-		for( start=0; start <= seq_length - pat_length[pat]; start++) {
+		for( start=0; start <= my_size_seq - pat_length[pat]; start++) {
+			// Da segmentation fault porque el patron puede estar entre medias de la zona asignada a cada proceso
+			// Habria que pasar lo restante de la comprobacion al siguiente proceso
+			
+			if (my_size_seq<=pat_length[pat]){
+				break;
+			}
 
 			/* 5.1.1. For each pattern element */
 			for( ind=0; ind<pat_length[pat]; ind++) {
 				/* Stop this test when different nucleotids are found */
+
 				if ( sequence[start + ind] != pattern[pat][ind] ) break;
 			}
 			/* 5.1.2. Check if the loop ended with a match */
@@ -398,11 +414,11 @@ int main(int argc, char *argv[]) {
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
 	unsigned long checksum_found = 0;
-	for( ind=0; ind < pat_number; ind++) {
+	for( ind=my_begin_pat; ind < my_end_pat; ind++) {
 		if ( pat_found[ind] != NOT_FOUND )
 			checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
 	}
-	for( ind=0; ind < seq_length; ind++) {
+	for( ind=0; ind < my_size_seq; ind++) {
 		if ( seq_matches[ind] != NOT_FOUND )
 			checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
 	}
@@ -411,13 +427,13 @@ int main(int argc, char *argv[]) {
 	/* DEBUG: Write results */
 	printf("-----------------\n");
 	printf("Found start:");
-	for( debug_pat=0; debug_pat<pat_number; debug_pat++ ) {
+	for( debug_pat=my_begin_pat; debug_pat<my_end_pat; debug_pat++ ) {
 		printf( " %lu", pat_found[debug_pat] );
 	}
 	printf("\n");
 	printf("-----------------\n");
 	printf("Matches:");
-	for( ind=0; ind<seq_length; ind++ ) 
+	for( ind=0; ind<my_size_seq; ind++ ) 
 		printf( " %d", seq_matches[ind] );
 	printf("\n");
 	printf("-----------------\n");
