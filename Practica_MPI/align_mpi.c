@@ -37,6 +37,7 @@
 void increment_matches( int pat, unsigned long *pat_found, unsigned long *pat_length, int *seq_matches ) {
 	int ind;	
 	for( ind=0; ind<pat_length[pat]; ind++) {
+		// pat_found[pat]+ind >= my_size_seq
 		if ( seq_matches[ pat_found[pat] + ind ] == NOT_FOUND )
 			seq_matches[ pat_found[pat] + ind ] = 0;
 		else
@@ -385,9 +386,15 @@ int main(int argc, char *argv[]) {
 	unsigned long nuevo_length;
 	int continuacion=0;
 	unsigned long ind_cont;
-	unsigned long evita_bloqueo_ind=-1;
+	unsigned long evita_bloqueo=-1;
+
+	int siguiente=rank+1;
+	int anterior=rank-1;
 	MPI_Status stat1;
 	MPI_Status stat2;
+	MPI_Status stat3;
+	MPI_Status stat4;
+
 
 
 	// Recorre todos los patrones
@@ -396,49 +403,35 @@ int main(int argc, char *argv[]) {
 	// Primer proceso nunca recibe
 	// Todos los procesos conocen todos los patrones
     for (pat = 0; pat < pat_number; pat++) {
-        /* Iterate over possible starting positions */
-		continuacion=0;
-
+        
+		/* Iterate over possible starting positions */
 		// Recorre la secuencia correspondiente al proceso
         for (start = 0; start < my_size_seq; start++) {
-			if (rank>0){
-				MPI_Recv(&ind_cont,1,MPI_UNSIGNED_LONG,rank-1,1,MPI_COMM_WORLD,&stat1);
-				
-				if (ind_cont!=-1){
-					continuacion=1; // Establezco que es una continuacion
-					MPI_Recv(&pat_cont,1,MPI_UNSIGNED_LONG,rank-1,2,MPI_COMM_WORLD,&stat2);
-				}
-			}
+
 
             // Recorre cada posicion del patron
 			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
-            for (ind = ind_cont; ind < pat_length[pat]; ind++) {
+            for (ind = 0; ind < pat_length[pat]; ind++) {
 
 				// Si no es el ultimo proceso
-				if (rank < (nprocs-1)){
-					// Si se sale paso el ind y el pat al siguiente proceso
-					if ((start+ind)>=my_size_seq){
-						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,rank+1,1,MPI_COMM_WORLD);
-						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,rank+1,2,MPI_COMM_WORLD);
+				// Si se sale paso el ind y el pat al siguiente proceso
+				if ((start+ind)>=my_size_seq ){
+					if(rank < (nprocs-1)){
+						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
+						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,siguiente,2,MPI_COMM_WORLD);
+						MPI_Send(&start,1,MPI_UNSIGNED_LONG,siguiente,3,MPI_COMM_WORLD);
 					}
 					else { // Mando mensaje para evitar que se quede bloquedo el siguiente proceso
-						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,rank+1,1,MPI_COMM_WORLD);
+						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 					}
 				}
-				
-                /* Stop this test when different nucleotides are found */
-				if (continuacion==1){
-					if (sequence[start + ind] != pattern[pat_cont][ind]) break;
-				}
 				else {
+	              	/* Stop this test when different nucleotides are found */
 					if (sequence[start + ind] != pattern[pat][ind]) break;
 				}
-                
             }
 
             /* Check if the loop ended with a match */
-			// Hay que cambiar esta comprobacion
-			// Suma del ind del proceso anterior mas el del actual
             if (ind == pat_length[pat]) {
                 pat_matches++;
                 pat_found[pat] = start;
@@ -449,22 +442,83 @@ int main(int argc, char *argv[]) {
         /* Pattern found */
         if (pat_found[pat] != NOT_FOUND) {
             /* Increment the number of pattern matches on the sequence positions */
+
+			// En esta funcion da segmentation fault
             increment_matches(pat, pat_found, pat_length, seq_matches);
         }
     }
+
+	// Solo reciben los que son mayores que 0
+	if (rank>0){
+
+		MPI_Recv(&ind_cont,1,MPI_UNSIGNED_LONG,anterior,1,MPI_COMM_WORLD,&stat1);
+
+		
+		if (ind_cont!=-1){ // Recibo indice donde lo dejo el anterior
+			MPI_Recv(&pat,1,MPI_UNSIGNED_LONG,anterior,2,MPI_COMM_WORLD,&stat2);
+			// Recibo el start del primer proceso que lo comenzo a buscar
+			MPI_Recv(&start,1,MPI_UNSIGNED_LONG,anterior,3,MPI_COMM_WORLD,&stat3);
+
+            // Recorre cada posicion del patron
+			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
+            for (ind = ind_cont; ind < pat_length[pat]; ind++) {
+
+				// Si no es el ultimo proceso
+				// Si se sale paso el ind y el pat al siguiente proceso
+				if (ind>=my_size_seq ){
+					if(rank < (nprocs-1)){
+						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
+						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,siguiente,2,MPI_COMM_WORLD);
+						// Envio start del primer proceso que lo comenzo a buscar
+						MPI_Send(&start,1,MPI_UNSIGNED_LONG,siguiente,3,MPI_COMM_WORLD);
+					}
+					else { // Mando mensaje para evitar que se quede bloquedo el siguiente proceso
+						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
+					}
+					break;
+				}
+				else {
+	              	/* Stop this test when different nucleotides are found */
+					if (sequence[ind] != pattern[pat][ind]) break;
+				}
+            }
+
+            /* Check if the loop ended with a match */
+            if (ind == pat_length[pat]) {
+                pat_matches++;
+                pat_found[pat] = start;
+            }
+        }
+
+		/* Pattern found */
+        if (pat_found[pat] != NOT_FOUND) {
+            /* Increment the number of pattern matches on the sequence positions */
+
+			// En esta funcion da segmentation fault
+            increment_matches(pat, pat_found, pat_length, seq_matches);
+        }
+	}
 
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
 	unsigned long checksum_found = 0;
+	unsigned long checksum_found_total=0;
+	unsigned long checksum_matches_total=0;
+
 	for( ind=my_begin_pat; ind < my_end_pat; ind++) {
 		if ( pat_found[ind] != NOT_FOUND )
-			checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
+			MPI_Reduce(&pat_found[ind], &checksum_found, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+			checksum_found_total=checksum_found_total+checksum_found%CHECKSUM_MAX;
 	}
 	for( ind=0; ind < my_size_seq; ind++) {
 		if ( seq_matches[ind] != NOT_FOUND )
-			checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
+			MPI_Reduce(&seq_matches[ind], &checksum_matches, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+			checksum_matches_total=checksum_matches_total+checksum_matches%CHECKSUM_MAX;
 	}
+
+	checksum_found=checksum_found_total;
+	checksum_matches=checksum_matches_total;
 
 #ifdef DEBUG
 	/* DEBUG: Write results */
