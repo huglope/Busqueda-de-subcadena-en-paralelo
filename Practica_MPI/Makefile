@@ -53,4 +53,4 @@ clean:
 
 # Compile in debug mode
 debug:
-	make DEBUG="-DDEBUG -g" FLAGS="-Wall" all
+	make DEBUG="-g" FLAGS="-Wall" all
