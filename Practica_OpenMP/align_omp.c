@@ -366,8 +366,8 @@ int main(int argc, char *argv[]) {
         if ( ind  ==  pat_length[pat]) {
         /* 4.2.1. Increment the number of pattern matches on the sequence positions */
           pat_found[pat] = start;
-          checksum_matches =(checksum_matches+ pat_length[pat])& (CHECKSUM_MAX-1);
-          checksum_found  = (start+checksum_found) & (CHECKSUM_MAX-1);
+          checksum_matches =(checksum_matches+ pat_length[pat])%CHECKSUM_MAX;
+          checksum_found  = (start+checksum_found) %CHECKSUM_MAX;
 	  #pragma omp atomic
           pat_matches++;
             break;
@@ -375,7 +375,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    #pragma omp for reduction(+:checksum_longest) schedule(dynamic)
+    #pragma omp for reduction(+:checksum_longest) schedule(guided)
     for( indi=0; indi < seq_length; indi++) {
                   seq_longest[indi] = 0;
                   for( pat=0; pat<pat_number; pat++ ) {
@@ -385,16 +385,16 @@ int main(int argc, char *argv[]) {
                                     if(indi < pat_found[pat] + pat_length[pat] )
                                                   seq_longest[indi] = pat_length[pat];
                   }
-      checksum_longest = (checksum_longest + seq_longest[indi]) & (CHECKSUM_MAX-1);
+      checksum_longest = (checksum_longest + seq_longest[indi]) %CHECKSUM_MAX;
     }
 
   }
 
 
 	/* 7. Check sums */
-  checksum_found = checksum_found & (CHECKSUM_MAX-1);
-  checksum_matches = checksum_matches & (CHECKSUM_MAX-1);
-  checksum_longest=checksum_longest & (CHECKSUM_MAX-1);
+  checksum_found = checksum_found %CHECKSUM_MAX;
+  checksum_matches = checksum_matches %CHECKSUM_MAX;
+  checksum_longest=checksum_longest %CHECKSUM_MAX;
 
 /*
  *
@@ -432,7 +432,7 @@ int main(int argc, char *argv[]) {
 	printf("Time: %lf\n", ttotal );
 
 	/* 9.2. Results: Statistics */
-	printf("Result: %d, %lu, %lu, %lu\n\n", 
+	printf("Result: pat_matches:%d, checksum_found:%lu, checksum_matches:%lu, checksum_longest:%lu\n\n", 
 			pat_matches,
 			checksum_found,
 			checksum_matches,
