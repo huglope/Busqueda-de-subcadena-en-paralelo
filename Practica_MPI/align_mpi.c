@@ -410,39 +410,23 @@ int main(int argc, char *argv[]) {
 	// Ultimo proceso nunca envia
 	// Primer proceso nunca recibe
 	// Todos los procesos conocen todos los patrones
-	printf("Rank %d mi tamano seq: %ld\n", rank, my_size_seq);
-
-    char sequence1[11]; // Definir un array de caracteres para almacenar la secuencia
-
-    if (rank == 0) {
-        strcpy(sequence1, "TGCTGAGTAC"); // Copiar la cadena "TGCTGA" al array sequence1
-    } else if (rank == 1) {
-        strcpy(sequence1, "ATGGGGTCAT"); // Copiar la cadena "ATGGGG" al array sequence1
-    }
-	else {
-		strcpy(sequence1, "TGACTTGTTA");
-	}
-	char pattern1[]="TGCTGAGTACATGGGGTCATTGACTTGTTA";
-	pat=0;
+    for (pat = 0; pat < pat_number; pat++) {
+        
 		/* Iterate over possible starting positions */
 		// Recorre la secuencia correspondiente al proceso
         for (start = 0; start < my_size_seq; start++) {
 
             // Recorre cada posicion del patron
 			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
-            for (ind = 0; ind < strlen(pattern1); ind++) {
+            for (ind = 0; ind < pat_length[pat]; ind++) {
 
 				// Si no es el ultimo proceso
 				// Si se sale paso el ind y el pat al siguiente proceso
-				if (rank==0){
-					printf("start: %ld, ind %ld\n", start, ind);
-				}
-				if ((start+ind)>=my_size_seq ){					
+				if ((start+ind)>=my_size_seq ){
 					if(rank != (nprocs-1)){
 						send_data[0]=ind;
 						send_data[1]=pat;
 						send_data[2]=start + my_begin_seq;
-						printf("Rank %d, Primer for ha enviado ind: %ld, start %ld\n", rank, send_data[0], send_data[2]);
 						MPI_Send(send_data,3,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 					/*	if(rank == 5 && pat > 1000 && pat < 1500)
 						printf("start+ind=%i\trank=%i, con tamaño %i\tHa enviado el patron %i, de tamaño %i\n", start+ind, rank, my_size_seq, pat, pat_length[pat]);*/
@@ -452,7 +436,7 @@ int main(int argc, char *argv[]) {
 				}
 				else {
 	              	/* Stop this test when different nucleotides are found */
-					if (sequence1[start + ind] != pattern1[ind]) break;
+					if (sequence[start + ind] != pattern[pat][ind]) break;
 				}
             }
 
@@ -460,6 +444,7 @@ int main(int argc, char *argv[]) {
             if (ind == pat_length[pat]) {
                 pat_matches++;
                 checksum_found += start+my_begin_seq;
+		checksum_matches += pat_length[pat];
                 break;
             }
 			
@@ -468,7 +453,13 @@ int main(int argc, char *argv[]) {
 				break;
 			}
         }
-	
+    }
+	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+		printf("Result: %i, %d, %lu, %lu\n\n", 
+				rank,
+				pat_matches_total,
+				checksum_found,
+				checksum_matches );
 
 	// Solo reciben los que son mayores que 0
 	if (rank>0){
@@ -479,8 +470,6 @@ int main(int argc, char *argv[]) {
 	//		printf("DENTRO\t RANK%i\tFLAG=%i\n", rank, flag);
 
 			MPI_Recv(&recv_data, 3, MPI_UNSIGNED_LONG, anterior, 1, MPI_COMM_WORLD, &stat);
-			printf("Rank %d, Segundo for ha recibido ind: %ld, start %ld\n", rank, recv_data[0], recv_data[2]);
-
 				// Entonces se tiene que hacer las comprobacions para seguir con el patron
 				ind_cont=recv_data[0];
 				pat=recv_data[1];
@@ -489,7 +478,7 @@ int main(int argc, char *argv[]) {
 			// Recorre cada posicion del patron
 			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
 		//	    		printf("EMPIEZA RANK%i\tind=%i\tpat=%i\n", rank, ind_cont, pat);
-			for (ind = ind_cont; ind < strlen(pattern1); ind++) {
+			for (ind = ind_cont; ind < pat_length[pat]; ind++) {
 	
 				// Si no es el ultimo proceso
 				// Si se sale paso el ind y el pat al siguiente proceso
@@ -499,31 +488,29 @@ int main(int argc, char *argv[]) {
 						send_data[1]=pat;
 						// Envio start del primer proceso que lo comenzo a buscar
 						send_data[2]=start;
-						printf("Rank %d, ha enviado ind: %ld, start %ld\n", rank, send_data[0], send_data[2]);
 						MPI_Send(send_data, 3, MPI_UNSIGNED_LONG, siguiente, 1, MPI_COMM_WORLD);
 					}
 					break;
 				}
 				else {
 					/* Stop this test when different nucleotides are found */
-					if (sequence1[ind-ind_cont] != pattern1[ind]) break;
+					if (sequence[ind-ind_cont] != pattern[pat][ind]) break;
 				}
 			}
-			printf("Rank %d Indice %ld\n", rank, ind);
 	
 			/* Check if the loop ended with a match */
-			if (ind == strlen(pattern1)) {
-						printf("Entroooo\n");
+			if (ind == pat_length[pat]) {
 		                pat_matches++;
-		                checksum_found += start+my_begin_seq;
+		                checksum_found += start;
+				checksum_matches += pat_length[pat];
 			}
 		MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
 		}
 	
 	}
-
+	
+	printf("rank = %i ha terminado\n", rank);
 	if(rank != nprocs - 1)
-
 		MPI_Send(send_data, 1, MPI_UNSIGNED_LONG, siguiente, 2, MPI_COMM_WORLD);
 
 	/* 7. Check sums */
