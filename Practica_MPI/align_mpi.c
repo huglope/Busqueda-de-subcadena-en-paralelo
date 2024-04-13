@@ -328,7 +328,7 @@ int main(int argc, char *argv[]) {
 	/* 2.1. Allocate and fill sequence */
 	int nprocs;
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-	unsigned long my_size_seq=(rank==nprocs-1) ? (seq_length/nprocs)+(seq_length%nprocs) : seq_length/nprocs;
+	unsigned long my_size_seq=(rank < seq_length%nprocs) ? (seq_length/nprocs)+(seq_length%nprocs) : seq_length/nprocs;
 	unsigned long my_begin_seq=rank*my_size_seq;
 
 	char *sequence = (char *)malloc( sizeof(char) * my_size_seq );
