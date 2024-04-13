@@ -441,7 +441,7 @@ int main(int argc, char *argv[]) {
             }
 
             /* Check if the loop ended with a match */
-            if (ind == pat_length[pat]) {
+            if (ind == pat_length[pat] && !patronEncontrado) {
                 pat_matches++;
                 checksum_found += start+my_begin_seq;
 		checksum_matches += pat_length[pat];
