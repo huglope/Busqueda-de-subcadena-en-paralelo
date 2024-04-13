@@ -383,17 +383,17 @@ int main(int argc, char *argv[]) {
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
-	unsigned long nuevo_length;
-	int continuacion=0;
+	int  patronEncontrado = 0;
 	unsigned long ind_cont;
-	unsigned long evita_bloqueo=-1;
+	int my_start, flag;
 
 	int siguiente=rank+1;
 	int anterior=rank-1;
+
+
 	MPI_Status stat1;
 	MPI_Status stat2;
 	MPI_Status stat3;
-	MPI_Status stat4;
 
 
 
@@ -416,48 +416,49 @@ int main(int argc, char *argv[]) {
 				// Si no es el ultimo proceso
 				// Si se sale paso el ind y el pat al siguiente proceso
 				if ((start+ind)>=my_size_seq ){
-					if(rank < (nprocs-1)){
+					if(rank != (nprocs-1)){
 						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,siguiente,2,MPI_COMM_WORLD);
-						MPI_Send(&start,1,MPI_UNSIGNED_LONG,siguiente,3,MPI_COMM_WORLD);
+						my_start = start + my_begin_seq;
+						MPI_Send(&my_start,1,MPI_UNSIGNED_LONG,siguiente,3,MPI_COMM_WORLD);
+					/*	if(rank == 5 && pat > 1000 && pat < 1500)
+						printf("start+ind=%i\trank=%i, con tamaño %i\tHa enviado el patron %i, de tamaño %i\n", start+ind, rank, my_size_seq, pat, pat_length[pat]);*/
 					}
-					else { // Mando mensaje para evitar que se quede bloquedo el siguiente proceso
-						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
-					}
+						patronEncontrado = 1;
+						break;
 				}
-				else {
+				else 
 	              	/* Stop this test when different nucleotides are found */
 					if (sequence[start + ind] != pattern[pat][ind]) break;
-				}
+				
             }
 
             /* Check if the loop ended with a match */
             if (ind == pat_length[pat]) {
                 pat_matches++;
-                pat_found[pat] = start;
+                pat_found[pat] = start+my_begin_seq;
+            	increment_matches(pat, pat_found, pat_length, seq_matches);
                 break;
             }
-        }
-
-        /* Pattern found */
-        if (pat_found[pat] != NOT_FOUND) {
-            /* Increment the number of pattern matches on the sequence positions */
-
-			// En esta funcion da segmentation fault
-            increment_matches(pat, pat_found, pat_length, seq_matches);
+	    if (patronEncontrado){
+		    patronEncontrado = 0;
+		    break;
+		}
         }
     }
 
 	// Solo reciben los que son mayores que 0
 	if (rank>0){
-
-		MPI_Recv(&ind_cont,1,MPI_UNSIGNED_LONG,anterior,1,MPI_COMM_WORLD,&stat1);
+	MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat1);
+	while(flag != 0){
+		MPI_Recv(&ind_cont, 1, MPI_UNSIGNED_LONG, anterior, 1, MPI_COMM_WORLD, &stat1);
 
 		
 		if (ind_cont!=-1){ // Recibo indice donde lo dejo el anterior
 			MPI_Recv(&pat,1,MPI_UNSIGNED_LONG,anterior,2,MPI_COMM_WORLD,&stat2);
 			// Recibo el start del primer proceso que lo comenzo a buscar
 			MPI_Recv(&start,1,MPI_UNSIGNED_LONG,anterior,3,MPI_COMM_WORLD,&stat3);
+//    		printf("EMPIEZA RANK%i\tind=%i\tpat=%i\n", rank, ind_cont, pat);
 
             // Recorre cada posicion del patron
 			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
@@ -466,14 +467,11 @@ int main(int argc, char *argv[]) {
 				// Si no es el ultimo proceso
 				// Si se sale paso el ind y el pat al siguiente proceso
 				if (ind>=my_size_seq ){
-					if(rank < (nprocs-1)){
+					if(rank != (nprocs-1)){
 						MPI_Send(&ind,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 						MPI_Send(&pat,1,MPI_UNSIGNED_LONG,siguiente,2,MPI_COMM_WORLD);
 						// Envio start del primer proceso que lo comenzo a buscar
 						MPI_Send(&start,1,MPI_UNSIGNED_LONG,siguiente,3,MPI_COMM_WORLD);
-					}
-					else { // Mando mensaje para evitar que se quede bloquedo el siguiente proceso
-						MPI_Send(&evita_bloqueo,1,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 					}
 					break;
 				}
@@ -487,18 +485,15 @@ int main(int argc, char *argv[]) {
             if (ind == pat_length[pat]) {
                 pat_matches++;
                 pat_found[pat] = start;
+            	increment_matches(pat, pat_found, pat_length, seq_matches);
             }
         }
-
-		/* Pattern found */
-        if (pat_found[pat] != NOT_FOUND) {
-            /* Increment the number of pattern matches on the sequence positions */
-
-			// En esta funcion da segmentation fault
-            increment_matches(pat, pat_found, pat_length, seq_matches);
-        }
+	
+	MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat1);
+	}
 	}
 
+	printf("rank = %i ha terminado\n", rank);
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
@@ -507,14 +502,16 @@ int main(int argc, char *argv[]) {
 	unsigned long checksum_matches_total=0;
 
 	for( ind=my_begin_pat; ind < my_end_pat; ind++) {
-		if ( pat_found[ind] != NOT_FOUND )
+		if ( pat_found[ind] != NOT_FOUND ){
 			MPI_Reduce(&pat_found[ind], &checksum_found, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 			checksum_found_total=checksum_found_total+checksum_found%CHECKSUM_MAX;
+		}
 	}
 	for( ind=0; ind < my_size_seq; ind++) {
-		if ( seq_matches[ind] != NOT_FOUND )
+		if ( seq_matches[ind] != NOT_FOUND ){
 			MPI_Reduce(&seq_matches[ind], &checksum_matches, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 			checksum_matches_total=checksum_matches_total+checksum_matches%CHECKSUM_MAX;
+		}
 	}
 
 	checksum_found=checksum_found_total;
