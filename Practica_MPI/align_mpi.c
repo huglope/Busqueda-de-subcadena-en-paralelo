@@ -453,8 +453,6 @@ int main(int argc, char *argv[]) {
 	while(flag != 0){
 		MPI_Recv(&ind_cont, 1, MPI_UNSIGNED_LONG, anterior, 1, MPI_COMM_WORLD, &stat1);
 
-		
-		if (ind_cont!=-1){ // Recibo indice donde lo dejo el anterior
 			MPI_Recv(&pat,1,MPI_UNSIGNED_LONG,anterior,2,MPI_COMM_WORLD,&stat2);
 			// Recibo el start del primer proceso que lo comenzo a buscar
 			MPI_Recv(&start,1,MPI_UNSIGNED_LONG,anterior,3,MPI_COMM_WORLD,&stat3);
