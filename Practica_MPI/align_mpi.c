@@ -389,14 +389,13 @@ int main(int argc, char *argv[]) {
 
 	int  patronEncontrado = 0;
 	unsigned long ind_cont;
-	int my_start, flag;
+	int flag;
 
 	int siguiente=rank+1;
 	int anterior=rank-1;
 
 
 	MPI_Status stat;
-	MPI_Status stat1;
 
 	unsigned long checksum_matches = 0;
 	unsigned long checksum_matches_total = 0;
@@ -425,10 +424,9 @@ int main(int argc, char *argv[]) {
 				// Si se sale paso el ind y el pat al siguiente proceso
 				if ((start+ind)>=my_size_seq ){
 					if(rank != (nprocs-1)){
-						my_start = start + my_begin_seq;
 						send_data[0]=ind;
 						send_data[1]=pat;
-						send_data[2]=my_start;
+						send_data[2]=start + my_begin_seq;
 						MPI_Send(send_data,3,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 					/*	if(rank == 5 && pat > 1000 && pat < 1500)
 						printf("start+ind=%i\trank=%i, con tamaño %i\tHa enviado el patron %i, de tamaño %i\n", start+ind, rank, my_size_seq, pat, pat_length[pat]);*/
@@ -456,13 +454,13 @@ int main(int argc, char *argv[]) {
 			}
         }
     }
+	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 		printf("Result: %i, %d, %lu, %lu\n\n", 
 				rank,
-				pat_matches,
+				pat_matches_total,
 				checksum_found,
 				checksum_matches );
 
-    MPI_Barrier(MPI_COMM_WORLD);
 	// Solo reciben los que son mayores que 0
 	if (rank>0){
 		MPI_Recv(&recv_data, 1, MPI_UNSIGNED_LONG, anterior, 2, MPI_COMM_WORLD, &stat);
@@ -515,7 +513,6 @@ int main(int argc, char *argv[]) {
 	printf("rank = %i ha terminado\n", rank);
 	if(rank != nprocs - 1)
 		MPI_Send(send_data, 1, MPI_UNSIGNED_LONG, siguiente, 2, MPI_COMM_WORLD);
-    	MPI_Barrier(MPI_COMM_WORLD);
 
 	/* 7. Check sums */
 
