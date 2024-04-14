@@ -330,6 +330,8 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 	unsigned long my_size_seq=(rank < seq_length%nprocs) ? (seq_length/nprocs)+1 : seq_length/nprocs;
         unsigned long my_begin_seq=(rank < seq_length%nprocs) ? (my_size_seq*rank) : (my_size_seq*rank)+(seq_length%nprocs);
+
+
 /*
 	unsigned long my_size_seq = (rank == (nprocs - 1)) ? (seq_length/nprocs) + (seq_length%nprocs) : seq_length/nprocs;
 	unsigned long my_begin_seq = (rank == (nprocs -1)) ? (seq_length/nprocs)*(nprocs-1) : rank * my_size_seq;
@@ -365,29 +367,26 @@ int main(int argc, char *argv[]) {
 #endif // DEBUG
 
 	/* 2.3.2. Other results related to the main sequence */
-/*	int *seq_matches;
+	int *seq_matches;
 	seq_matches = (int *)malloc( sizeof(int) * my_size_seq );
 	if ( seq_matches == NULL ) {
 		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
-*/
+
 	/* 4. Initialize ancillary structures */
-/*	int my_size_pat = (rank < pat_number % nprocs) ? pat_number/nprocs + 1 : pat_number/nprocs;
-        unsigned long my_begin_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank) : (my_size_pat*rank)+(pat_number%nprocs);
-        unsigned long my_end_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank)+my_size_pat : (my_size_pat*rank)+(pat_number%nprocs) + my_size_pat;
 
 
-	*/
-/*	for( ind=0; ind<my_size_seq; ind++) {
+
+	for( ind=0; ind<my_size_seq; ind++) {
 		seq_matches[ind] = 0;
 	}
-*/
 
 
 	for (ind = 0; ind < pat_number; ind++)
 		pat_found[ind] = seq_length;
 
+	
 	/* 5. Search for each pattern */
 	unsigned long start = 0;
 	unsigned long pat = 0;
@@ -403,7 +402,6 @@ int main(int argc, char *argv[]) {
 	recv_data[2] = 0;
 
 
-	int  patronEncontrado = 0;
 	unsigned long ind_cont = 0;
 	int flag = 0;
 	int patron_actual = 0;
@@ -443,7 +441,6 @@ int main(int argc, char *argv[]) {
 						send_data[2]=start + my_begin_seq;
 						MPI_Send(send_data,3,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
 					}
-						patronEncontrado = 1;
 						break;
 				}
 				else {
@@ -458,10 +455,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
 			
-			if (patronEncontrado){
-				patronEncontrado = 0;
-				break;
-			}
+
         }
     }
 //	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -566,7 +560,7 @@ int main(int argc, char *argv[]) {
 
 	/* Free local resources */	
 	free( sequence );
-/*	free( seq_matches );*/
+	free( seq_matches );
 
 /*
  *
