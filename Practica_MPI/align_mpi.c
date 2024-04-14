@@ -332,10 +332,7 @@ int main(int argc, char *argv[]) {
         unsigned long my_begin_seq=(rank < seq_length%nprocs) ? (my_size_seq*rank) : (my_size_seq*rank)+(seq_length%nprocs);
 
 
-/*
-	unsigned long my_size_seq = (rank == (nprocs - 1)) ? (seq_length/nprocs) + (seq_length%nprocs) : seq_length/nprocs;
-	unsigned long my_begin_seq = (rank == (nprocs -1)) ? (seq_length/nprocs)*(nprocs-1) : rank * my_size_seq;
-*/
+
 	char *sequence = (char *)malloc( sizeof(char) * my_size_seq );
 	if ( sequence == NULL ) {
 		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", my_size_seq );
@@ -367,14 +364,8 @@ int main(int argc, char *argv[]) {
 #endif // DEBUG
 
 	/* 2.3.2. Other results related to the main sequence */
-/*	int *seq_matches;
-	seq_matches = (int *)malloc( sizeof(int) * my_size_seq );
-	if ( seq_matches == NULL ) {
-		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", my_size_seq );
-		exit( EXIT_FAILURE );
-	}
 
-*/	/* 4. Initialize ancillary structures */
+	/* 4. Initialize ancillary structures */
 
 
 
@@ -395,8 +386,8 @@ int main(int argc, char *argv[]) {
 	int flag = 0;
 	unsigned long  patron_actual = 0;
 
-	int siguiente=rank+1;
-	int anterior=rank-1;
+	unsigned long  siguiente=rank+1;
+	unsigned long  anterior=rank-1;
 
 
 	MPI_Status stat;
@@ -447,7 +438,6 @@ int main(int argc, char *argv[]) {
 
         }
     }
-//	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
 	// Solo reciben los que son mayores que 0
 	if (rank>0){
@@ -455,7 +445,6 @@ int main(int argc, char *argv[]) {
 		MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
 
 		while(flag){
-	//		printf("DENTRO\t RANK%i\tFLAG=%i\n", rank, flag);
 
 			MPI_Recv(recv_data, 3, MPI_UNSIGNED_LONG, anterior, 1, MPI_COMM_WORLD, &stat);
 				// Entonces se tiene que hacer las comprobacions para seguir con el patron
@@ -465,7 +454,6 @@ int main(int argc, char *argv[]) {
 	
 			// Recorre cada posicion del patron
 			// Si start=8 entonces se comprobara start=9,10,11... porque se va sumando el ind si coinciden
-		//	    		printf("EMPIEZA RANK%i\tind=%i\tpat=%i\n", rank, ind_cont, pat);
 			for (ind = ind_cont; ind < pat_length[pat]; ind++) {
 	
 				// Si no es el ultimo proceso
@@ -488,10 +476,9 @@ int main(int argc, char *argv[]) {
 	
 			/* Check if the loop ended with a match */
             		if (ind == pat_length[pat] && pat_found[pat] > start){
-			     //  printf("ENTRAAAAAAAAAAAAAAaaa????????????\n");	
 		                pat_found[pat] = start;
 			}
-		MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
+			MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
 		}
 	
 	}
@@ -502,18 +489,12 @@ int main(int argc, char *argv[]) {
 
 	/* 7. Check sums */
 
-/*	MPI_Reduce(&checksum_found, &checksum_found_total, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-	MPI_Reduce(&checksum_matches, &checksum_matches_total, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-*/
-
-    
 	for( ind=0; ind < pat_number; ind++) {
 
-		MPI_Reduce(&pat_found[ind], &patron_actual, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+		MPI_Reduce(&pat_found[ind], &patron_actual, 1, MPI_UNSIGNED_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
 			
 		if(rank == 0){
-			if(patron_actual != seq_length){
+			if(patron_actual != seq_length && patron_actual != -1){
 				pat_matches++;
 				checksum_matches = (checksum_matches + pat_length[ind]) % CHECKSUM_MAX;
 				checksum_found = (checksum_found + patron_actual) % CHECKSUM_MAX;
