@@ -1,0 +1,227 @@
+[33mcommit 6b83c37f82e9a9f6cc57e1f936ac387f2e2c8bc6[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sun Apr 14 01:21:18 2024 +0200
+
+    algoritmo pasar a siguiente proceso deberia funcionar
+
+[33mcommit b1ab85e4d95dd2ff0c3fc0a0faf1ed559918ff23[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sun Apr 14 01:00:25 2024 +0200
+
+    prueba casos aislados
+
+[33mcommit 4ea0293be4c7969990c476c5c1bde9601a2f858a[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 22:02:03 2024 +0200
+
+    poco a poco v1.2
+
+[33mcommit 8cd90e60e3bf3e1e5abd1776ff99a2ef4766027c[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 21:53:48 2024 +0200
+
+    poco a poco v1.1
+
+[33mcommit 4014103df0b68dfc5a6b6eddd182770e572e75c3[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 21:52:56 2024 +0200
+
+    poco a poco v1.1
+
+[33mcommit dd11b8158b6f8ccdc34f955eaa462af3593f7b6a[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 21:50:29 2024 +0200
+
+    poco a poco v1
+
+[33mcommit 88cf8b09d219d7ebede47a53a7567725c01c1f78[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 21:22:34 2024 +0200
+
+    poco a poco
+
+[33mcommit 473cd2ca674e8836b84dcbeec9a5312678ab488f[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sat Apr 13 18:45:37 2024 +0200
+
+    array data y recv_data
+
+[33mcommit 8e8deab6c34da92cf6d90962ba4fb13eb337995d[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 14:59:58 2024 +0200
+
+    ya casi funciona o eso creo v1.1
+
+[33mcommit e1bbc3ff57703243c7e2b270ab503a766a098de3[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Apr 13 14:57:00 2024 +0200
+
+    ya casi funciona o eso creo
+
+[33mcommit 63ccca1546d0942fb8260947bc0ab325716b3171[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sat Apr 13 01:58:18 2024 +0200
+
+    mas o menos se va consiguiendo
+
+[33mcommit c1bbd198e14052b8ef65dd90d3a3ca3caccb46d6[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Apr 12 22:32:37 2024 +0200
+
+    Estamos cerca
+
+[33mcommit 088250f68f591feb3e4de908a984be055f589547[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Apr 12 18:55:02 2024 +0200
+
+    Se va entendiendo algo
+
+[33mcommit 5957314bac76ba8f3240a42e57454d3db09e0a28[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Apr 12 17:56:37 2024 +0200
+
+    Inicio mpi
+
+[33mcommit 766668b5276d6c8f11cfa7522bcf424bfb30ae58[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Tue Mar 12 18:20:57 2024 +0100
+
+    21,4
+
+[33mcommit 98d83c1b2233fe356c0ae18620837848daef4d50[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Tue Mar 12 14:29:53 2024 +0100
+
+    Algo mejor
+
+[33mcommit e528df57e1e4ae0d3f56a43ff8bc300f305e928c[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Tue Mar 12 14:16:16 2024 +0100
+
+    posible mejora
+
+[33mcommit 10f96121653e5977ab4318225b32fd6cb7d0299a[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Tue Mar 12 13:38:24 2024 +0100
+
+    mal
+
+[33mcommit f2cb03faa60a47591b2e6fcf6da31949b0f04c16[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Mon Mar 11 21:49:53 2024 +0100
+
+    mejor
+
+[33mcommit b0cec87c950473a42c0a059e9ee674a0889f702b[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Mon Mar 11 14:20:45 2024 +0100
+
+    lo que debería ser pero no es
+
+[33mcommit 04fe30f2c8038665ab4a93e80656df0083c63360[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Mon Mar 11 13:02:56 2024 +0100
+
+    18,37
+
+[33mcommit 55b7c1977a3c80d036febfdd41aab52fd336f68e[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Mon Mar 11 01:20:16 2024 +0100
+
+    R2D2
+
+[33mcommit 78e60c8f738f981180ddc133bc82c691d3db24f6[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Mon Mar 11 00:55:06 2024 +0100
+
+    18.9s record
+
+[33mcommit ea3402b397a07fbcac8576b4ec77e2ea86854d66[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 22:14:47 2024 +0100
+
+    Ref 3
+
+[33mcommit aa303de0840dea4d7a988f703aedf0e9b93d8cb6[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 20:35:46 2024 +0100
+
+    no se si he cambiado algo
+
+[33mcommit aa43acd53cde02fbe7c6c9986ba141fd36b4b32b[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 14:14:05 2024 +0100
+
+    casiiiii
+
+[33mcommit 03ebf95e103e3c3bb9305179bf92a72caca03387[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 13:26:01 2024 +0100
+
+    encontrado fallo
+
+[33mcommit dda74753223d469744f3f1b15cb18e5919fb4874[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 12:26:07 2024 +0100
+
+    50p
+
+[33mcommit 5f65f1ea65c3d74546d0f62b0d54edcc2bfd67aa[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 03:39:46 2024 +0100
+
+    Esta cerca pero no va
+
+[33mcommit e43b895e83b0bf443c73daaea914cac01f9afa6b[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sun Mar 10 00:01:56 2024 +0100
+
+    25,9
+
+[33mcommit 839d18005fa7fd1c8611a1fdbe1c126b046b9390[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Mar 9 21:01:41 2024 +0100
+
+    Ref 2
+
+[33mcommit c9a6da2440899ad9aef459233c7053c554fedd0d[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sat Mar 9 18:36:17 2024 +0100
+
+    28.1s record
+
+[33mcommit 830642024a0fd5face5805fcd3f0d6d7c790d8cb[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Sat Mar 9 16:58:44 2024 +0100
+
+    28s record
+
+[33mcommit 258b5a6fedb013aacf164fd3be7fce9d61ddd3a3[m
+Author: huglope <hugo.lopez@estudiantes.uva.es>
+Date:   Sat Mar 9 13:45:01 2024 +0100
+
+    comentarios Ref2
+
+[33mcommit ae1be148719245a38155be2cd99eed4467db238b[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Mar 8 20:47:48 2024 +0100
+
+    Ref1 passed
+
+[33mcommit 165dcaad6443a9edfac240798914d142f4b41728[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Mar 8 18:39:30 2024 +0100
+
+    Minor upgrades
+
+[33mcommit 49cc8ade744dc5c88e225be81e3ccd71540168f2[m
+Author: jagarci <javier.garcia.gonzalez@estudiantes.uva.es>
+Date:   Fri Mar 8 16:38:34 2024 +0100
+
+    Updated to v1.1
+
+[33mcommit e8a1cd7f7c8a760052c9adf99ca4372cf8f9b410[m
+Author: Javier Garcia <javiergarciaglz16@gmail.com>
+Date:   Thu Mar 7 19:02:04 2024 +0100
+
+    First commit
