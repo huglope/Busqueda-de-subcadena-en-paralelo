@@ -385,6 +385,11 @@ int main(int argc, char *argv[]) {
 		seq_matches[ind] = 0;
 	}
 */
+
+
+	for (ind = 0; ind < pat_number; ind++)
+		pat_found[ind] = NOT_FOUND;
+
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
@@ -395,6 +400,7 @@ int main(int argc, char *argv[]) {
 	int  patronEncontrado = 0;
 	unsigned long ind_cont;
 	int flag;
+	int patron_actual;
 
 	int siguiente=rank+1;
 	int anterior=rank-1;
@@ -444,10 +450,8 @@ int main(int argc, char *argv[]) {
             }
 
             /* Check if the loop ended with a match */
-            if (ind == pat_length[pat]) {
-                pat_matches++;
-                checksum_found += start+my_begin_seq;
-		checksum_matches += pat_length[pat];
+            if (ind == pat_length[pat] && pat_found[pat] == NOT_FOUND) {
+                pat_found[pat] = start+my_begin_seq;
                 break;
             }
 			
@@ -502,11 +506,9 @@ int main(int argc, char *argv[]) {
 			}
 	
 			/* Check if the loop ended with a match */
-			if (ind == pat_length[pat]) {
-				printf("ENTRAAAAAAAAAAAAAAAAAA???????\n");
-		                pat_matches++;
-		                checksum_found += start;
-				checksum_matches += pat_length[pat];
+            		if (ind == pat_length[pat] && pat_found[pat] >= start){
+			       printf("ENTRAAAAAAAAAAAAAAaaa????????????\n");	
+		                pat_found[pat] = start;
 			}
 		MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
 		}
@@ -519,28 +521,31 @@ int main(int argc, char *argv[]) {
 
 	/* 7. Check sums */
 
-	MPI_Reduce(&checksum_found, &checksum_found_total, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+/*	MPI_Reduce(&checksum_found, &checksum_found_total, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Reduce(&checksum_matches, &checksum_matches_total, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+*/
 
-
-    /*
-	for( ind=my_begin_pat; ind < my_end_pat; ind++) {
-		if ( pat_found[ind] != NOT_FOUND ){
-			MPI_Reduce(&pat_found[ind], &checksum_found, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-			checksum_found_total=checksum_found_total+checksum_found%CHECKSUM_MAX;
-		}
+    
+	for( ind=0; ind < pat_number; ind++) {
+			MPI_Reduce(&pat_found[ind], &patron_actual, 1, MPI_UNSIGNED_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+			if(rank == 0)
+				if(patron_actual != NOT_FOUND){
+					pat_matches++;
+					checksum_matches = (checksum_matches + pat_length[ind]) % CHECKSUM_MAX;
+					checksum_found = (checksum_found + patron_actual) % CHECKSUM_MAX;
+				}
 	}
-	for( ind=0; ind < my_size_seq; ind++) {
+
+
+
+/*	for( ind=0; ind < my_size_seq; ind++) {
 		if ( seq_matches[ind] != NOT_FOUND ){
 			MPI_Reduce(&seq_matches[ind], &checksum_matches, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 			checksum_matches_total=checksum_matches_total+checksum_matches%CHECKSUM_MAX;
 		}
 	}
 */
-	checksum_found=checksum_found_total%CHECKSUM_MAX;
-	checksum_matches=checksum_matches_total%CHECKSUM_MAX;
-	pat_matches = pat_matches_total;
 
 #ifdef DEBUG
 	/* DEBUG: Write results */
