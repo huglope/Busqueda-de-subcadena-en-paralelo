@@ -367,14 +367,14 @@ int main(int argc, char *argv[]) {
 #endif // DEBUG
 
 	/* 2.3.2. Other results related to the main sequence */
-	int *seq_matches;
+/*	int *seq_matches;
 	seq_matches = (int *)malloc( sizeof(int) * my_size_seq );
 	if ( seq_matches == NULL ) {
 		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
 
-	/* 4. Initialize ancillary structures */
+*/	/* 4. Initialize ancillary structures */
 
 
 
@@ -387,20 +387,13 @@ int main(int argc, char *argv[]) {
 	unsigned long start = 0;
 	unsigned long pat = 0;
 	unsigned long send_data[3]; // Array para almacenar los datos que se mandan al siguiente
-	
-	send_data[0] = 0;
-	send_data[1] = 0;
-	send_data[2] = 0;
 	unsigned long recv_data[3]; // Array para almacenar los datos que se mandan al siguiente
 	
-	recv_data[0] = 0;
-	recv_data[1] = 0;
-	recv_data[2] = 0;
 
 
 	unsigned long ind_cont = 0;
 	int flag = 0;
-	int patron_actual = 0;
+	unsigned long  patron_actual = 0;
 
 	int siguiente=rank+1;
 	int anterior=rank-1;
@@ -494,7 +487,7 @@ int main(int argc, char *argv[]) {
 			}
 	
 			/* Check if the loop ended with a match */
-            		if (ind == pat_length[pat] && pat_found[pat] >= start){
+            		if (ind == pat_length[pat] && pat_found[pat] > start){
 			     //  printf("ENTRAAAAAAAAAAAAAAaaa????????????\n");	
 		                pat_found[pat] = start;
 			}
@@ -556,7 +549,7 @@ int main(int argc, char *argv[]) {
 
 	/* Free local resources */	
 	free( sequence );
-	free( seq_matches );
+//	free( seq_matches );
 
 /*
  *

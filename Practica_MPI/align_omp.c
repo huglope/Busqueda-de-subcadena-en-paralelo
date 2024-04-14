@@ -429,7 +429,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef DEBUG
 	/* DEBUG: Write results */
-	printf("-----------------\n");
+	printf("----------------\n");
 	printf("Found start:");
 	for( debug_pat=0; debug_pat<pat_number; debug_pat++ ) {
 		printf( " %lu", pat_found[debug_pat] );
