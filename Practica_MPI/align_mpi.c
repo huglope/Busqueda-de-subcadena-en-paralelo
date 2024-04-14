@@ -378,10 +378,6 @@ int main(int argc, char *argv[]) {
 
 
 
-	for( ind=0; ind<my_size_seq; ind++) {
-		seq_matches[ind] = 0;
-	}
-
 
 	for (ind = 0; ind < pat_number; ind++)
 		pat_found[ind] = seq_length;
