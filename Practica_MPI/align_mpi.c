@@ -328,19 +328,23 @@ int main(int argc, char *argv[]) {
 	/* 2.1. Allocate and fill sequence */
 	int nprocs;
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-	unsigned long my_size_seq=(rank == (nprocs-1)) ? (seq_length/nprocs)+(seq_length%nprocs) : seq_length/nprocs;
-	unsigned long my_begin_seq=rank*my_size_seq;
-
+	unsigned long my_size_seq=(rank < seq_length%nprocs) ? (seq_length/nprocs)+1 : seq_length/nprocs;
+        unsigned long my_begin_seq=(rank < seq_length%nprocs) ? (my_size_seq*rank) : (my_size_seq*rank)+(seq_length%nprocs);
+/*
+	unsigned long my_size_seq = (rank == (nprocs - 1)) ? (seq_length/nprocs) + (seq_length%nprocs) : seq_length/nprocs;
+	unsigned long my_begin_seq = (rank == (nprocs -1)) ? (seq_length/nprocs)*(nprocs-1) : rank * my_size_seq;
+*/
 	char *sequence = (char *)malloc( sizeof(char) * my_size_seq );
 	if ( sequence == NULL ) {
 		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
 	random = rng_new( seed );
+	rng_t random_local = random;
 
-	rng_skip(&random, my_begin_seq);
+	rng_skip(&random_local, my_begin_seq);
 
-	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, my_size_seq);
+	generate_rng_sequence( &random_local, prob_G, prob_C, prob_A, sequence, my_size_seq);
 
 #ifdef DEBUG
 	/* DEBUG: Print sequence and patterns */
@@ -361,25 +365,26 @@ int main(int argc, char *argv[]) {
 #endif // DEBUG
 
 	/* 2.3.2. Other results related to the main sequence */
-	int *seq_matches;
+/*	int *seq_matches;
 	seq_matches = (int *)malloc( sizeof(int) * my_size_seq );
 	if ( seq_matches == NULL ) {
 		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", my_size_seq );
 		exit( EXIT_FAILURE );
 	}
-
+*/
 	/* 4. Initialize ancillary structures */
-	int my_size_pat = pat_number / nprocs;
-	unsigned long my_begin_pat = rank * my_size_pat;
-	unsigned long my_end_pat = (rank == nprocs - 1) ? pat_number : my_begin_pat + my_size_pat;
+	int my_size_pat = (rank < pat_number % nprocs) ? pat_number/nprocs + 1 : pat_number/nprocs;
+        unsigned long my_begin_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank) : (my_size_pat*rank)+(pat_number%nprocs);
+        unsigned long my_end_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank)+my_size_pat : (my_size_pat*rank)+(pat_number%nprocs) + my_size_pat;
+
 
 	for( ind=my_begin_pat; ind<my_end_pat; ind++) {
 		pat_found[ind] = NOT_FOUND;
 	}
-	for( ind=0; ind<my_size_seq; ind++) {
+/*	for( ind=0; ind<my_size_seq; ind++) {
 		seq_matches[ind] = 0;
 	}
-
+*/
 	/* 5. Search for each pattern */
 	unsigned long start;
 	unsigned long pat;
@@ -428,8 +433,6 @@ int main(int argc, char *argv[]) {
 						send_data[1]=pat;
 						send_data[2]=start + my_begin_seq;
 						MPI_Send(send_data,3,MPI_UNSIGNED_LONG,siguiente,1,MPI_COMM_WORLD);
-					/*	if(rank == 5 && pat > 1000 && pat < 1500)
-						printf("start+ind=%i\trank=%i, con tamaño %i\tHa enviado el patron %i, de tamaño %i\n", start+ind, rank, my_size_seq, pat, pat_length[pat]);*/
 					}
 						patronEncontrado = 1;
 						break;
@@ -454,10 +457,10 @@ int main(int argc, char *argv[]) {
 			}
         }
     }
-	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+//	MPI_Reduce(&pat_matches, &pat_matches_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 		printf("Result: %i, %d, %lu, %lu\n\n", 
 				rank,
-				pat_matches_total,
+				pat_matches,
 				checksum_found,
 				checksum_matches );
 
@@ -500,6 +503,7 @@ int main(int argc, char *argv[]) {
 	
 			/* Check if the loop ended with a match */
 			if (ind == pat_length[pat]) {
+				printf("ENTRAAAAAAAAAAAAAAAAAA???????\n");
 		                pat_matches++;
 		                checksum_found += start;
 				checksum_matches += pat_length[pat];
@@ -556,7 +560,7 @@ int main(int argc, char *argv[]) {
 
 	/* Free local resources */	
 	free( sequence );
-	free( seq_matches );
+/*	free( seq_matches );*/
 
 /*
  *
