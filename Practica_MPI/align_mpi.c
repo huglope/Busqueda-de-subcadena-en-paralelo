@@ -326,7 +326,7 @@ int main(int argc, char *argv[]) {
  *
  */
 	/* 2.1. Allocate and fill sequence */
-	int nprocs;
+	int nprocs = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 	unsigned long my_size_seq=(rank < seq_length%nprocs) ? (seq_length/nprocs)+1 : seq_length/nprocs;
         unsigned long my_begin_seq=(rank < seq_length%nprocs) ? (my_size_seq*rank) : (my_size_seq*rank)+(seq_length%nprocs);
@@ -373,11 +373,12 @@ int main(int argc, char *argv[]) {
 	}
 */
 	/* 4. Initialize ancillary structures */
-	int my_size_pat = (rank < pat_number % nprocs) ? pat_number/nprocs + 1 : pat_number/nprocs;
+/*	int my_size_pat = (rank < pat_number % nprocs) ? pat_number/nprocs + 1 : pat_number/nprocs;
         unsigned long my_begin_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank) : (my_size_pat*rank)+(pat_number%nprocs);
         unsigned long my_end_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank)+my_size_pat : (my_size_pat*rank)+(pat_number%nprocs) + my_size_pat;
 
 
+	*/
 /*	for( ind=0; ind<my_size_seq; ind++) {
 		seq_matches[ind] = 0;
 	}
@@ -388,16 +389,24 @@ int main(int argc, char *argv[]) {
 		pat_found[ind] = seq_length;
 
 	/* 5. Search for each pattern */
-	unsigned long start;
-	unsigned long pat;
+	unsigned long start = 0;
+	unsigned long pat = 0;
 	unsigned long send_data[3]; // Array para almacenar los datos que se mandan al siguiente
+	
+	send_data[0] = 0;
+	send_data[1] = 0;
+	send_data[2] = 0;
 	unsigned long recv_data[3]; // Array para almacenar los datos que se mandan al siguiente
+	
+	recv_data[0] = 0;
+	recv_data[1] = 0;
+	recv_data[2] = 0;
 
 
 	int  patronEncontrado = 0;
-	unsigned long ind_cont;
-	int flag;
-	int patron_actual;
+	unsigned long ind_cont = 0;
+	int flag = 0;
+	int patron_actual = 0;
 
 	int siguiente=rank+1;
 	int anterior=rank-1;
@@ -496,7 +505,7 @@ int main(int argc, char *argv[]) {
 	
 			/* Check if the loop ended with a match */
             		if (ind == pat_length[pat] && pat_found[pat] >= start){
-			       printf("ENTRAAAAAAAAAAAAAAaaa????????????\n");	
+			     //  printf("ENTRAAAAAAAAAAAAAAaaa????????????\n");	
 		                pat_found[pat] = start;
 			}
 		MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, &stat);
@@ -504,7 +513,7 @@ int main(int argc, char *argv[]) {
 	
 	}
 	
-	printf("rank = %i ha terminado\n", rank);
+//	printf("rank = %i ha terminado\n", rank);
 	if(rank != nprocs - 1)
 		MPI_Send(send_data, 1, MPI_UNSIGNED_LONG, siguiente, 2, MPI_COMM_WORLD);
 
@@ -517,16 +526,11 @@ int main(int argc, char *argv[]) {
 
     
 	for( ind=0; ind < pat_number; ind++) {
-		if(ind == 3210)
-			printf ("rank:%i\tvalor:%i\n", rank, pat_found[ind]);
 
 		MPI_Reduce(&pat_found[ind], &patron_actual, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
 			
 		if(rank == 0){
 			if(patron_actual != seq_length){
-			//	printf("Encontrado pat:%i\tcon valor %i\n", ind, patron_actual);
-				if(patron_actual > 625000)
-					printf("HAY UNO MAS\n");
 				pat_matches++;
 				checksum_matches = (checksum_matches + pat_length[ind]) % CHECKSUM_MAX;
 				checksum_found = (checksum_found + patron_actual) % CHECKSUM_MAX;
