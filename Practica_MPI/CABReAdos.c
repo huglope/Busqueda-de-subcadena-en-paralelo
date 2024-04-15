@@ -326,10 +326,12 @@ int main(int argc, char *argv[]) {
  *
  */
 	/* 2.1. Allocate and fill sequence */
-	int nprocs;
+	int nprocs = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 	unsigned long my_size_seq=(rank < seq_length%nprocs) ? (seq_length/nprocs)+1 : seq_length/nprocs;
         unsigned long my_begin_seq=(rank < seq_length%nprocs) ? (my_size_seq*rank) : (my_size_seq*rank)+(seq_length%nprocs);
+
+
 
 	char *sequence = (char *)malloc( sizeof(char) * my_size_seq );
 	if ( sequence == NULL ) {
@@ -337,10 +339,11 @@ int main(int argc, char *argv[]) {
 		exit( EXIT_FAILURE );
 	}
 	random = rng_new( seed );
+	rng_t random_local = random;
 
-	rng_skip(&random, my_begin_seq);
+	rng_skip(&random_local, my_begin_seq);
 
-	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, my_size_seq);
+	generate_rng_sequence( &random_local, prob_G, prob_C, prob_A, sequence, my_size_seq);
 
 #ifdef DEBUG
 	/* DEBUG: Print sequence and patterns */
@@ -363,19 +366,25 @@ int main(int argc, char *argv[]) {
 	/* 2.3.2. Other results related to the main sequence */
 
 	/* 4. Initialize ancillary structures */
+
+
+
+
 	for (ind = 0; ind < pat_number; ind++)
 		pat_found[ind] = seq_length;
 
 	
 	/* 5. Search for each pattern */
-	unsigned long start;
-	unsigned long pat;
+	unsigned long start = 0;
+	unsigned long pat = 0;
 	unsigned long send_data[3]; // Array para almacenar los datos que se mandan al siguiente
 	unsigned long recv_data[3]; // Array para almacenar los datos que se mandan al siguiente
+	
 
-	unsigned long ind_cont;
-	int flag;
-	unsigned long  patron_actual;
+
+	unsigned long ind_cont = 0;
+	int flag = 0;
+	unsigned long  patron_actual = 0;
 
 	unsigned long  siguiente=rank+1;
 	unsigned long  anterior=rank-1;
@@ -460,7 +469,7 @@ int main(int argc, char *argv[]) {
 			}
 	
 			/* Check if the loop ended with a match */
-            		if (ind == pat_length[pat] && pat_found[pat] > recv_data[2]){
+            		if (ind == pat_length[pat] && pat_found[pat] > start){
 		                pat_found[pat] = recv_data[2];
 			}
 			MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
@@ -468,6 +477,7 @@ int main(int argc, char *argv[]) {
 	
 	}
 	
+//	printf("rank = %i ha terminado\n", rank);
 	if(rank != nprocs - 1)
 		MPI_Send(send_data, 1, MPI_UNSIGNED_LONG, siguiente, 2, MPI_COMM_WORLD);
 

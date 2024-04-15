@@ -340,7 +340,7 @@ int main(int argc, char *argv[]) {
 
 	rng_skip(&random, my_begin_seq);
 
-	generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, my_size_seq);
+	generate_rng_sequence( &random_local, prob_G, prob_C, prob_A, sequence, my_size_seq);
 
 #ifdef DEBUG
 	/* DEBUG: Print sequence and patterns */
@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
 			}
 	
 			/* Check if the loop ended with a match */
-            		if (ind == pat_length[pat] && pat_found[pat] > recv_data[2]){
+            		if (ind == pat_length[pat] && pat_found[pat] > start){
 		                pat_found[pat] = recv_data[2];
 			}
 			MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
