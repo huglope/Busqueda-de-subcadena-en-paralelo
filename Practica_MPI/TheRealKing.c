@@ -360,14 +360,18 @@ int main(int argc, char *argv[]) {
 	printf("-----------------\n\n");
 #endif // DEBUG
 
+	unsigned long my_size_pat=(rank < pat_number%nprocs) ? (pat_number/nprocs)+1 : pat_number/nprocs;
+        unsigned long my_begin_pat=(rank < pat_number%nprocs) ? (my_size_pat*rank) : (my_size_pat*rank)+(pat_number%nprocs);
+        unsigned long my_end_pat= my_begin_pat + my_size_pat;
+	for (ind = my_begin_pat; ind < my_end_pat; ind++) {
+		pat_found[ind] = seq_length;
+		MPI_Bcast(&pat_found[ind],1,  MPI_UNSIGNED_LONG, rank, MPI_COMM_WORLD);
+	
+	}
 	/* 2.3.2. Other results related to the main sequence */
 
 	/* 4. Initialize ancillary structures */
-	if (rank == 0)
-	for (ind = 0; ind < pat_number; ind++)
-		pat_found[ind] = seq_length;
 
-	MPI_Bcast(pat_found, pat_number, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 	
 	/* 5. Search for each pattern */
 	unsigned long start;
@@ -469,6 +473,7 @@ int main(int argc, char *argv[]) {
 			
 			MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
 		}
+
 	
 	}
 	
