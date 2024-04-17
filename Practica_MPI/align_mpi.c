@@ -360,20 +360,6 @@ int main(int argc, char *argv[]) {
 	printf("-----------------\n\n");
 #endif // DEBUG
 
-	for (ind = pat_number/nprocs*rank; ind < (pat_number/nprocs)*(rank+1); ind++) {
-		pat_found[ind] = seq_length;
-	}
-	MPI_Bcast(&pat_found[pat_number/nprocs * rank], pat_number/nprocs,  MPI_UNSIGNED_LONG, rank, MPI_COMM_WORLD);
-	if(rank == 0)
-		for(ind = pat_number - (pat_number%nprocs); ind < pat_number; ind++)
-			pat_found[ind] = seq_length;
-	
-	MPI_Bcast(&pat_found[pat_number - (pat_number %nprocs)], pat_number%nprocs,  MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-
-
-/*	for(ind = 0; ind < pat_number; ind++)
-		pat_found[ind] = seq_length;
-*/
 	/* 2.3.2. Other results related to the main sequence */
 
 	/* 4. Initialize ancillary structures */
@@ -401,6 +387,7 @@ int main(int argc, char *argv[]) {
 	// Primer proceso nunca recibe
 	// Todos los procesos conocen todos los patrones
     for (pat = 0; pat < pat_number; pat++) {
+		pat_found[pat] = seq_length;
         
 		/* Iterate over possible starting positions */
 		// Recorre la secuencia correspondiente al proceso
@@ -428,10 +415,9 @@ int main(int argc, char *argv[]) {
             }
 
             /* Check if the loop ended with a match */
-            if (ind == pat_length[pat])
-		    if(pat_found[pat] == seq_length) {
-	                pat_found[pat] = start+my_begin_seq;
-        	        break;
+            if (ind == pat_length[pat] && pat_found[pat] == seq_length) {
+                pat_found[pat] = start+my_begin_seq;
+                break;
             }
 			
 
@@ -473,13 +459,11 @@ int main(int argc, char *argv[]) {
 			}
 	
 			/* Check if the loop ended with a match */
-            		if (ind == pat_length[pat])
-			       if (pat_found[pat] > recv_data[2])
-		               	pat_found[pat] = recv_data[2];
-			
+            		if (ind == pat_length[pat] && pat_found[pat] > recv_data[2]){
+		                pat_found[pat] = recv_data[2];
+			}
 			MPI_Iprobe(anterior, 1, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
 		}
-
 	
 	}
 	
@@ -492,14 +476,13 @@ int main(int argc, char *argv[]) {
 
 		MPI_Reduce(&pat_found[ind], &patron_actual, 1, MPI_UNSIGNED_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
 			
-		if(rank == 0)
-			if(patron_actual != seq_length)
-				   	if(patron_actual != -1){
-					pat_matches++;
-					checksum_matches = (checksum_matches + pat_length[ind]) % CHECKSUM_MAX;
-					checksum_found = (checksum_found + patron_actual) % CHECKSUM_MAX;
+		if(rank == 0){
+			if(patron_actual != seq_length && patron_actual != -1){
+				pat_matches++;
+				checksum_matches = (checksum_matches + pat_length[ind]) % CHECKSUM_MAX;
+				checksum_found = (checksum_found + patron_actual) % CHECKSUM_MAX;
 			}
-		 
+		 }
 	}
 
 
