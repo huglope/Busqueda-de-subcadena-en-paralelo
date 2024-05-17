@@ -5,7 +5,7 @@
  * Computacion Paralela, Grado en Informatica (Universidad de Valladolid)
  * 2023/2024
  *
- * v1.1
+ * v1.2
  *
  * (c) 2024, Arturo Gonzalez-Escribano
  */
@@ -26,6 +26,9 @@ typedef uint64_t	rng_t;
 /*
  * Constructor: Create a new state from a seed
  */
+#ifdef __CUDACC__
+__host__ __device__ 
+#endif
 rng_t rng_new(uint64_t seed) {
     uint64_t hash = seed;
     hash = (hash ^ (hash >> 30)) * 0xbf58476d1ce4e5b9ULL;
@@ -38,14 +41,20 @@ rng_t rng_new(uint64_t seed) {
  * Next: Advance state and return a double number uniformely distributed
  * Adapted from the implementation on PCG (https://www.pcg-random.org/)
  */
+#ifdef __CUDACC__
+__host__ __device__ 
+#endif
 double rng_next(rng_t *seq) {
     *seq = ( *seq * RNG_MULTIPLIER + RNG_INCREMENT);
-    return (double) ldexp( *seq, -64 );
+    return (double) ldexpf( *seq, -64 );
 }
 
 /*
  * Next Normal: Advance state and return a double number distributed with a normal(mu,sigma)
  */
+#ifdef __CUDACC__
+__host__ __device__ 
+#endif
 double rng_next_normal( rng_t *seq, double mu, double sigma) {
     double u1 = rng_next(seq);
     double u2 = rng_next(seq);
@@ -60,6 +69,9 @@ double rng_next_normal( rng_t *seq, double mu, double sigma) {
  * Skip ahead: Advance state with an arbitrary jump in log time
  * Adapted from the implementation on PCG (https://www.pcg-random.org/)
  */
+#ifdef __CUDACC__
+__host__ __device__ 
+#endif
 void rng_skip( rng_t *seq, uint64_t steps ) {
     uint64_t cur_mult = RNG_MULTIPLIER;
     uint64_t cur_plus = RNG_INCREMENT;

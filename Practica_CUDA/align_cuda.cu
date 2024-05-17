@@ -17,9 +17,13 @@
 #include<limits.h>
 #include<sys/time.h>
 
-
 /* Headers for the CUDA assignment versions */
 #include<cuda.h>
+
+/* Example of macros for error checking in CUDA */
+#define CUDA_CHECK_FUNCTION( call )	{ cudaError_t check = call; if ( check != cudaSuccess ) fprintf(stderr, "CUDA Error in line: %d, %s\n", __LINE__, cudaGetErrorString(check) ); }
+#define CUDA_CHECK_KERNEL( )	{ cudaError_t check = cudaGetLastError(); if ( check != cudaSuccess ) fprintf(stderr, "CUDA Kernel Error in line: %d, %s\n", __LINE__, cudaGetErrorString(check) ); }
+
 /* Arbitrary value to indicate that no matches are found */
 #define	NOT_FOUND	-1
 
@@ -27,27 +31,27 @@
 #define CHECKSUM_MAX	65535
 
 
+/* 
+ * Utils: Function to get wall time
+ */
+double cp_Wtime(){
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec + 1.0e-6 * tv.tv_usec;
+}
 
 /*
  * Utils: Random generator
  */
 #include "rng.c"
 
-
-/*
- * Function: Increment the number of pattern matches on the sequence positions
- * 	This function can be changed and/or optimized by the students
- */
 /*
  *
  * START HERE: DO NOT CHANGE THE CODE ABOVE THIS POINT
+ * DO NOT USE OpenMP IN YOUR CODE
  *
  */
-
-//
-// KERNELS
-//
-
+/* ADD KERNELS AND OTHER FUNCTIONS HERE */
 __device__ float d_rng_next(rng_t *seq){
     *seq = ( *seq * RNG_MULTIPLIER + RNG_INCREMENT);
     return (float) ldexpf( *seq, -64 ); //Si da problemas castear a float
@@ -84,23 +88,24 @@ __global__ void initializeSequence( rng_t *random, float prob_G, float prob_C, f
 	else d_seq[tid] = 'T';
 }
 
-
+/*
+ * Function: Increment the number of pattern matches on the sequence positions
+ * 	This function can be changed and/or optimized by the students
+ */
+void increment_matches( int pat, unsigned long *pat_found, unsigned long *pat_length, int *seq_matches ) {
+	unsigned long ind;	
+	for( ind=0; ind<pat_length[pat]; ind++) {
+		if ( seq_matches[ pat_found[pat] + ind ] == NOT_FOUND )
+			seq_matches[ pat_found[pat] + ind ] = 0;
+		else
+			seq_matches[ pat_found[pat] + ind ] ++;
+	}
+}
 /*
  *
  * STOP HERE: DO NOT CHANGE THE CODE BELOW THIS POINT
  *
  */
-
-
-/* 
- * Utils: Function to get wall time
- */
-double cp_Wtime(){
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return tv.tv_sec + 1.0e-6 * tv.tv_usec;
-}
-
 
 /*
  * Function: Allocate new patttern
@@ -238,6 +243,8 @@ int main(int argc, char *argv[]) {
 	printf("\n");
 #endif // DEBUG
 
+        CUDA_CHECK_FUNCTION( cudaSetDevice(0) );
+
 	/* 2. Initialize data structures */
 	/* 2.1. Skip allocate and fill sequence */
 	rng_t random = rng_new( seed );
@@ -254,7 +261,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* 2.2.2 Allocate and initialize ancillary structure for pattern types */
-	unsigned long ind;
+	int ind;
+	unsigned long lind;
 	#define PAT_TYPE_NONE	0
 	#define PAT_TYPE_RNG	1
 	#define PAT_TYPE_SAMP	2
@@ -313,11 +321,28 @@ int main(int argc, char *argv[]) {
 #endif
 		}
 		else {
-			fprintf(stderr,"\n-- Error internal: Paranoic check! A pattern without type at position %lu\n", ind );
+			fprintf(stderr,"\n-- Error internal: Paranoic check! A pattern without type at position %d\n", ind );
 			exit( EXIT_FAILURE );
 		}
 	}
 	free( pat_type );
+
+	/* Allocate and move the patterns to the GPU */
+	unsigned long *d_pat_length;
+	char **d_pattern;
+	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_length, sizeof(unsigned long) * pat_number ) );
+	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pattern, sizeof(char *) * pat_number ) );
+
+	char **d_pattern_in_host = (char **)malloc( sizeof(char*) * pat_number );
+	if ( d_pattern_in_host == NULL ) {
+		fprintf(stderr,"\n-- Error allocating the patterns structures replicated in the host for size: %d\n", pat_number );
+		exit( EXIT_FAILURE );
+	}
+	for( ind=0; ind<pat_number; ind++ ) {
+		CUDA_CHECK_FUNCTION( cudaMalloc( &(d_pattern_in_host[ind]), sizeof(char *) * pat_length[ind] ) );
+        	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pattern_in_host[ind], pattern[ind], pat_length[ind] * sizeof(char), cudaMemcpyHostToDevice ) );
+	}
+	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pattern, d_pattern_in_host, pat_number * sizeof(char *), cudaMemcpyHostToDevice ) );
 
 	/* Avoid the usage of arguments to take strategic decisions
 	 * In a real case the user only has the patterns and sequence data to analize
@@ -346,24 +371,22 @@ int main(int argc, char *argv[]) {
 	}
 	
 	/* 3. Start global timer */
-        cudaSetDevice(0);
-        cudaDeviceSynchronize();
+        CUDA_CHECK_FUNCTION( cudaDeviceSynchronize() );
 	double ttotal = cp_Wtime();
 
 /*
  *
  * START HERE: DO NOT CHANGE THE CODE ABOVE THIS POINT
+ * DO NOT USE OpenMP IN YOUR CODE
  *
  */
 	/* 2.1. Allocate and fill sequence */
-	// Comprobacion loca
-
 	dim3 grid(1, 1);
 	dim3 block(seq_length);
 	
 	char *h_seq = (char *)malloc( sizeof(char) * seq_length );
 	char *d_seq;
-	cudaMalloc((void **) &d_seq, seq_length);
+	CUDA_CHECK_FUNCTION( cudaMalloc((void **) &d_seq, seq_length) );
 	
 	if ( h_seq == NULL ) {
 		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", seq_length );
@@ -372,33 +395,26 @@ int main(int argc, char *argv[]) {
 	random = rng_new( seed );
 	//generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, seq_length);
 	
-
-	cudaMemcpy(d_seq, h_seq, seq_length, cudaMemcpyHostToDevice);
-	initializeSequence<<<grid, block>>>(&random, prob_G, prob_C, prob_A, seq_length, d_seq);
+	CUDA_CHECK_FUNCTION(cudaMemcpy(d_seq, h_seq, seq_length, cudaMemcpyHostToDevice)));
+	CUDA_CHECK_KERNEL(initializeSequence<<<grid, block>>>(&random, prob_G, prob_C, prob_A, seq_length, d_seq));
 		
 	// Comprobacion de secuencia
 	cudaMemcpy(h_seq, d_seq, seq_length, cudaMemcpyDeviceToHost);
 	
-	printf("Sequence: ");
-	for( ind=0; ind<seq_length; ind++ ) 
-		printf( "%c", h_seq[ind] );
-	
-	return 0;
-	// Fin comprobacin y ejecucion
 
 #ifdef DEBUG
 	/* DEBUG: Print sequence and patterns */
 	printf("-----------------\n");
 	printf("Sequence: ");
-	for( ind=0; ind<seq_length; ind++ ) 
-		//printf( "%c", sequence[ind] );
+	for( lind=0; lind<seq_length; lind++ ) 
+		printf( "%c", sequence[lind] );
 	printf("\n-----------------\n");
 	printf("Patterns: %d ( rng: %d, samples: %d )\n", pat_number, pat_rng_num, pat_samp_num );
 	int debug_pat;
 	for( debug_pat=0; debug_pat<pat_number; debug_pat++ ) {
 		printf( "Pat[%d]: ", debug_pat );
-		for( ind=0; ind<pat_length[debug_pat]; ind++ ) 
-			printf( "%c", pattern[debug_pat][ind] );
+		for( lind=0; lind<pat_length[debug_pat]; lind++ ) 
+			printf( "%c", pattern[debug_pat][lind] );
 		printf("\n");
 	}
 	printf("-----------------\n\n");
@@ -416,25 +432,25 @@ int main(int argc, char *argv[]) {
 	for( ind=0; ind<pat_number; ind++) {
 		pat_found[ind] = (unsigned long)NOT_FOUND;
 	}
-	for( ind=0; ind<seq_length; ind++) {
-		seq_matches[ind] = 0;
+	for( lind=0; lind<seq_length; lind++) {
+		seq_matches[lind] = 0;
 	}
 
 	/* 5. Search for each pattern */
 	unsigned long start;
-	unsigned long pat;
+	int pat;
 	for( pat=0; pat < pat_number; pat++ ) {
 
 		/* 5.1. For each posible starting position */
 		for( start=0; start <= seq_length - pat_length[pat]; start++) {
 
 			/* 5.1.1. For each pattern element */
-			for( ind=0; ind<pat_length[pat]; ind++) {
+			for( lind=0; lind<pat_length[pat]; lind++) {
 				/* Stop this test when different nucleotids are found */
-			//	if ( sequence[start + ind] != pattern[pat][ind] ) break;
+				if ( sequence[start + lind] != pattern[pat][lind] ) break;
 			}
 			/* 5.1.2. Check if the loop ended with a match */
-			if ( ind == pat_length[pat] ) {
+			if ( lind == pat_length[pat] ) {
 				pat_matches++;
 				pat_found[pat] = start;
 				break;
@@ -444,7 +460,7 @@ int main(int argc, char *argv[]) {
 		/* 5.2. Pattern found */
 		if ( pat_found[pat] != (unsigned long)NOT_FOUND ) {
 			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			//increment_matches( pat, pat_found, pat_length, seq_matches );
+			increment_matches( pat, pat_found, pat_length, seq_matches );
 		}
 	}
 
@@ -455,9 +471,9 @@ int main(int argc, char *argv[]) {
 		if ( pat_found[ind] != (unsigned long)NOT_FOUND )
 			checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
 	}
-	for( ind=0; ind < seq_length; ind++) {
-		if ( seq_matches[ind] != (unsigned long)NOT_FOUND )
-			checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
+	for( lind=0; lind < seq_length; lind++) {
+		if ( seq_matches[lind] != NOT_FOUND )
+			checksum_matches = ( checksum_matches + seq_matches[lind] ) % CHECKSUM_MAX;
 	}
 
 #ifdef DEBUG
@@ -470,16 +486,15 @@ int main(int argc, char *argv[]) {
 	printf("\n");
 	printf("-----------------\n");
 	printf("Matches:");
-	for( ind=0; ind<seq_length; ind++ ) 
-		printf( " %d", seq_matches[ind] );
+	for( lind=0; lind<seq_length; lind++ ) 
+		printf( " %d", seq_matches[lind] );
 	printf("\n");
 	printf("-----------------\n");
 #endif // DEBUG
 
 	/* Free local resources */	
-//	free( sequence );
+	free( sequence );
 	free( seq_matches );
-	cudaFree(d_seq);
 
 /*
  *
@@ -488,7 +503,7 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 8. Stop global timer */
-	cudaDeviceSynchronize();
+        CUDA_CHECK_FUNCTION( cudaDeviceSynchronize() );
 	ttotal = cp_Wtime() - ttotal;
 
 	/* 9. Output for leaderboard */
