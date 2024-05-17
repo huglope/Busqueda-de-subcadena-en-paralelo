@@ -53,6 +53,13 @@ double cp_Wtime(){
  */
 /* ADD KERNELS AND OTHER FUNCTIONS HERE */
 
+/*
+ * Function: Increment the number of pattern matches on the sequence positions
+ * 	This function can be changed and/or optimized by the students
+ */
+
+
+
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
 	unsigned long tid;
@@ -67,19 +74,29 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 	else d_seq[tid] = 'T';
 }
 
-/*
- * Function: Increment the number of pattern matches on the sequence positions
- * 	This function can be changed and/or optimized by the students
- */
-void increment_matches( int pat, unsigned long *pat_found, unsigned long *pat_length, int *seq_matches ) {
-	unsigned long ind;	
-	for( ind=0; ind<pat_length[pat]; ind++) {
-		if ( seq_matches[ pat_found[pat] + ind ] == NOT_FOUND )
-			seq_matches[ pat_found[pat] + ind ] = 0;
-		else
-			seq_matches[ pat_found[pat] + ind ] ++;
+__global__ void checkMatches(char *d_seq, char *d_pattern_pat, unsigned long *d_pat_length_pat, unsigned long* d_pat_found_pat, unsigned long seq_length, int *d_pat_matches){
+	unsigned long start=threadIdx.x;
+	unsigned long lind;
+
+	if (start > seq_length - *d_pat_length_pat) return;
+
+	for( lind=0; lind<*d_pat_length_pat; lind++) {
+		if ( d_seq[start + lind] != d_pattern_pat[lind] ) break;
 	}
+	
+	if ( lind == *d_pat_length_pat ) {
+		atomicAdd(d_pat_matches, 1);
+		*d_pat_found_pat = start;
+	}
+
+	/* 5.2. Pattern found */
+	//if ( d_pat_found_pat != NOT_FOUND ) {
+	//	/* 4.2.1. Increment the number of pattern matches on the sequence positions */
+	//	increment_matches( &d_pat_found_pat, &d_pat_length_pat, d_seq_matches );
+	//}
 }
+
+
 /*
  *
  * STOP HERE: DO NOT CHANGE THE CODE BELOW THIS POINT
@@ -381,10 +398,6 @@ int main(int argc, char *argv[]) {
 		
 	// Comprobacion de secuencia
 	CUDA_CHECK_FUNCTION(cudaMemcpy(h_seq, d_seq, sizeof(char)*seq_length, cudaMemcpyDeviceToHost));
-	for(int i = 0; i < seq_length; i++){
-		printf("%c", h_seq[i]);
-	}
-	return 0;
 	
 
 #ifdef DEBUG
@@ -421,33 +434,44 @@ int main(int argc, char *argv[]) {
 		seq_matches[lind] = 0;
 	}
 
+	
+	char *d_pattern_pat;
+	unsigned long *d_pat_length_pat;
+	unsigned long *d_pat_found_pat;
+	int *d_pat_matches;
+	int *d_seq_matches;
+
 	/* 5. Search for each pattern */
 	unsigned long start;
 	int pat;
 	for( pat=0; pat < pat_number; pat++ ) {
 
-		/* 5.1. For each posible starting position */
-		for( start=0; start <= seq_length - pat_length[pat]; start++) {
+		// Reservar memoria en el device
+	    CUDA_CHECK_FUNCTION( cudaMalloc( &d_pattern_pat, sizeof(char) * pat_length[pat] ) );
+		CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_length_pat, sizeof(unsigned long) ) );
+		CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found_pat, sizeof(unsigned long) ) );
 
-			/* 5.1.1. For each pattern element */
-			for( lind=0; lind<pat_length[pat]; lind++) {
-				/* Stop this test when different nucleotids are found */
-				if ( h_seq[start + lind] != pattern[pat][lind] ) break;
-			}
-			/* 5.1.2. Check if the loop ended with a match */
-			if ( lind == pat_length[pat] ) {
-				pat_matches++;
-				pat_found[pat] = start;
-				break;
-			}
-		}
+		CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_matches, sizeof(int) ) );
+		CUDA_CHECK_FUNCTION( cudaMalloc( &d_seq_matches, sizeof(int) * seq_length ) );
 
-		/* 5.2. Pattern found */
-		if ( pat_found[pat] != (unsigned long)NOT_FOUND ) {
-			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			increment_matches( pat, pat_found, pat_length, seq_matches );
-		}
+
+		// Copiar los datos al device
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pattern_pat, pattern[pat], sizeof(char) * pat_length[pat], cudaMemcpyHostToDevice ) );
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length_pat, &pat_length[pat], sizeof(unsigned long), cudaMemcpyHostToDevice ) );
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_found_pat, &pat_found[pat], sizeof(unsigned long), cudaMemcpyHostToDevice ) );
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_matches, &pat_matches, sizeof(int), cudaMemcpyHostToDevice ));
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_seq_matches, seq_matches, sizeof(int) * seq_length, cudaMemcpyHostToDevice ) );
+
+		checkMatches<<<grid, block>>>(d_seq, d_pattern_pat, d_pat_length_pat, d_pat_found_pat, seq_length, d_pat_matches);
+		CUDA_CHECK_KERNEL();
+
+		// Traer los datos de vuelta
+		CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_found[pat], d_pat_found_pat, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
+		CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(int), cudaMemcpyDeviceToHost ) );
+		CUDA_CHECK_FUNCTION( cudaMemcpy( seq_matches, d_seq_matches, sizeof(int) * seq_length, cudaMemcpyDeviceToHost ) );
+		
 	}
+
 
 	/* 7. Check sums */
 	unsigned long checksum_matches = 0;
