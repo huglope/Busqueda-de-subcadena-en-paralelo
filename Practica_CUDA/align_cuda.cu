@@ -52,36 +52,15 @@ double cp_Wtime(){
  *
  */
 /* ADD KERNELS AND OTHER FUNCTIONS HERE */
-__device__ float d_rng_next(rng_t *seq){
-    *seq = ( *seq * RNG_MULTIPLIER + RNG_INCREMENT);
-    return (float) ldexpf( *seq, -64 ); //Si da problemas castear a float
-}
 
-__device__ void d_rng_skip( rng_t *seq, unsigned long steps ) {
-    uint64_t cur_mult = RNG_MULTIPLIER;
-    uint64_t cur_plus = RNG_INCREMENT;
-
-    uint64_t acc_mult = 1u;
-    uint64_t acc_plus = 0u;
-    while (steps > 0) {
-        if (steps & 1) {
-            acc_mult *= cur_mult;
-            acc_plus = acc_plus * cur_mult + cur_plus;
-        }
-        cur_plus = (cur_mult + 1) * cur_plus;
-        cur_mult *= cur_mult;
-        steps /= 2;
-    }
-    *seq = acc_mult * (*seq) + acc_plus;
-}
-__global__ void initializeSequence( rng_t *random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
+__global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
 	unsigned long tid;
 	tid = (unsigned long) threadIdx.x; 
 
-	d_rng_skip(random, tid);
-	float prob = d_rng_next( random );
-	
+	rng_skip(&random, tid);
+	float prob = rng_next( &random );
+
 	if( prob < prob_G ) d_seq[tid] = 'G';
 	else if( prob < prob_C ) d_seq[tid] = 'C';
 	else if( prob < prob_A ) d_seq[tid] = 'A';
@@ -382,24 +361,30 @@ int main(int argc, char *argv[]) {
  */
 	/* 2.1. Allocate and fill sequence */
 	dim3 grid(1, 1);
-	dim3 block(seq_length);
+	dim3 block(seq_length,1);
 	
 	char *h_seq = (char *)malloc( sizeof(char) * seq_length );
-	char *d_seq;
-	CUDA_CHECK_FUNCTION( cudaMalloc((void **) &d_seq, seq_length) );
-	
 	if ( h_seq == NULL ) {
 		fprintf(stderr,"\n-- Error allocating the sequence for size: %lu\n", seq_length );
 		exit( EXIT_FAILURE );
 	}
+
+	char *d_seq;
+	CUDA_CHECK_FUNCTION( cudaMalloc(&d_seq, sizeof(char)*seq_length) );
+	
+
 	random = rng_new( seed );
 	//generate_rng_sequence( &random, prob_G, prob_C, prob_A, sequence, seq_length);
 	
-	CUDA_CHECK_FUNCTION(cudaMemcpy(d_seq, h_seq, seq_length, cudaMemcpyHostToDevice)));
-	CUDA_CHECK_KERNEL(initializeSequence<<<grid, block>>>(&random, prob_G, prob_C, prob_A, seq_length, d_seq));
+	initializeSequence<<<grid, block>>>(random, prob_G, prob_C, prob_A, seq_length, d_seq);
+	CUDA_CHECK_KERNEL();
 		
 	// Comprobacion de secuencia
-	cudaMemcpy(h_seq, d_seq, seq_length, cudaMemcpyDeviceToHost);
+	CUDA_CHECK_FUNCTION(cudaMemcpy(h_seq, d_seq, sizeof(char)*seq_length, cudaMemcpyDeviceToHost));
+	for(int i = 0; i < seq_length; i++){
+		printf("%c", h_seq[i]);
+	}
+	return 0;
 	
 
 #ifdef DEBUG
@@ -447,7 +432,7 @@ int main(int argc, char *argv[]) {
 			/* 5.1.1. For each pattern element */
 			for( lind=0; lind<pat_length[pat]; lind++) {
 				/* Stop this test when different nucleotids are found */
-				if ( sequence[start + lind] != pattern[pat][lind] ) break;
+				if ( h_seq[start + lind] != pattern[pat][lind] ) break;
 			}
 			/* 5.1.2. Check if the loop ended with a match */
 			if ( lind == pat_length[pat] ) {
@@ -493,7 +478,7 @@ int main(int argc, char *argv[]) {
 #endif // DEBUG
 
 	/* Free local resources */	
-	free( sequence );
+	//free( sequence );
 	free( seq_matches );
 
 /*
