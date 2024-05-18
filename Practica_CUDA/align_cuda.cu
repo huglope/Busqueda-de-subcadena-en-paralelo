@@ -418,7 +418,7 @@ int main(int argc, char *argv[]) {
  */
 	/* 2.1. Allocate and fill sequence */
 	
-	unsigned long hilosBloque = 256; // Número de hilos por bloque
+	unsigned long hilosBloque = 512; // Número de hilos por bloque
     unsigned long numBloquesSeq = (seq_length % hilosBloque == 0)? seq_length / hilosBloque : seq_length / hilosBloque + 1; // Número de bloques necesarios para recorrer  la secuencia
 	unsigned long numBloquesPat = (pat_number % hilosBloque == 0) ? pat_number/hilosBloque : pat_number/hilosBloque + 1; // Número de bloques necesarios para recorrer los patrones
 
@@ -428,8 +428,9 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMalloc(&d_seq, sizeof(char)*seq_length) );
 
 	random = rng_new( seed );
-	
+	double mitimempo= cp_Wtime();
 	initializeSequence<<<numBloquesSeq, hilosBloque>>>(random, prob_G, prob_C, prob_A, seq_length, d_seq);
+	printf("timepo secuencia = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
 		
 #ifdef DEBUG
@@ -460,7 +461,9 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length, pat_length, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
 	
 	// Lanzar el kernel
+	mitimempo= cp_Wtime();
 	checkMatches<<<numBloquesPat, hilosBloque>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
 
 	/* 7. Check sums */
@@ -479,13 +482,18 @@ int main(int argc, char *argv[]) {
 	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
 	// Reduccion de los checksum
+
+	mitimempo= cp_Wtime();
 	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	printf("timepo reduccion = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
 
+
+	mitimempo= cp_Wtime();
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
-
+	printf("timepo checksum = %lf\n", cp_Wtime() - mitimempo);
 
 	checksum_matches = checksum_matches % CHECKSUM_MAX;
 	checksum_found = checksum_found % CHECKSUM_MAX;
