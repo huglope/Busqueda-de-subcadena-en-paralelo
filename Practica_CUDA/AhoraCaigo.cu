@@ -99,44 +99,43 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
     unsigned long tid = threadIdx.x;
 	unsigned long i = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned long s;
 	
+    extern __shared__ unsigned long long shared_checksum_found[];
+    extern __shared__ unsigned long long shared_checksum_matches[];
+	extern __shared__ unsigned long long shared_matches[];
 
-    __shared__ unsigned long long shared_checksum_found[256];
-    __shared__ unsigned long long shared_checksum_matches[256];
-	__shared__ unsigned long long shared_matches[256];
+	shared_checksum_found[tid] = 0;
+	shared_checksum_matches[tid +blockDim.x ] = 0;
+	shared_matches[tid+blockDim.x*2] = 0;
 
 
     // Calcular las sumas parciales de los hilos
     if (i < pat_number) {
         if (d_pat_found[i] != NOT_FOUND) {
-            shared_checksum_found[tid] += d_pat_found[i];
-            shared_checksum_matches[tid] += d_pat_length[i];
-			shared_matches[tid] = 1;
+            shared_checksum_found[tid] = d_pat_found[i];
+            shared_checksum_matches[tid +blockDim.x ] = d_pat_length[i];
+			shared_matches[tid+blockDim.x*2] = 1;
         }
     }
     __syncthreads();
 
     // Reducción en el bloque utilizando un árbol binario
-	unsigned long s;
     for (s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
             shared_checksum_found[tid] += shared_checksum_found[tid + s];
-            shared_checksum_matches[tid] += shared_checksum_matches[tid + s];
-			shared_matches[tid] += shared_matches[tid + s];
+            shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[tid + s+blockDim.x];
+			shared_matches[tid+blockDim.x*2] += shared_matches[tid + s+blockDim.x*2];
         }
-        __syncthreads();
+       __syncthreads();
     }
 
     if (tid == 0) {
         atomicAdd(d_checksum_found, shared_checksum_found[0] % CHECKSUM_MAX);
-        atomicAdd(d_checksum_matches, shared_checksum_matches[0] % CHECKSUM_MAX);
-		atomicAdd(d_pat_matches, shared_matches[0]);
+        atomicAdd(d_checksum_matches, shared_checksum_matches[blockDim.x] % CHECKSUM_MAX);
+		atomicAdd(d_pat_matches, shared_matches[2*blockDim.x]);
     }
 }
-
-
-
-
 
 /*
  *
@@ -420,8 +419,8 @@ int main(int argc, char *argv[]) {
 	/* 2.1. Allocate and fill sequence */
 	
 	unsigned long hilosBloque = 256; // Número de hilos por bloque
-    unsigned long numBloquesSeq = (seq_length + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer  la secuencia
-	unsigned long numBloquesPat = (pat_number + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer los patrones
+    unsigned long numBloquesSeq = (seq_length % hilosBloque == 0)? seq_length / hilosBloque : seq_length / hilosBloque + 1; // Número de bloques necesarios para recorrer  la secuencia
+	unsigned long numBloquesPat = (pat_number % hilosBloque == 0) ? pat_number/hilosBloque : pat_number/hilosBloque + 1; // Número de bloques necesarios para recorrer los patrones
 
 	// Variable para el kernel
 	char *d_seq;
@@ -451,15 +450,6 @@ int main(int argc, char *argv[]) {
 	printf("-----------------\n\n");
 #endif // DEBUG
 
-	/* 2.3.2. Other results related to the main sequence */
-	int *seq_matches;
-	seq_matches = (int *)malloc( sizeof(int) * seq_length );
-	if ( seq_matches == NULL ) {
-		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", seq_length );
-		exit( EXIT_FAILURE );
-	}
-
-
 	/* 5. Search for each pattern */
 
 	// Variable para el kernel
@@ -468,18 +458,15 @@ int main(int argc, char *argv[]) {
 	
 	// Copiar los datos al device
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length, pat_length, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
-	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_found, pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
 	
 	// Lanzar el kernel
 	checkMatches<<<numBloquesPat, hilosBloque>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
 	CUDA_CHECK_KERNEL();
 
-
-
 	/* 7. Check sums */
 	
-	unsigned long checksum_matches=0;
-	unsigned long checksum_found=0;
+	unsigned long checksum_matches;
+	unsigned long checksum_found;
 
 	unsigned long long *d_pat_matches;
 	unsigned long long *d_checksum_matches;
@@ -488,14 +475,11 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_matches, sizeof(unsigned long long) ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_matches, sizeof(unsigned long long) ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_found, sizeof(unsigned long long) ) );
-	
-	CUDA_CHECK_FUNCTION( cudaMemset( d_pat_matches, 0, sizeof(unsigned long long) ));
-	CUDA_CHECK_FUNCTION( cudaMemset( d_checksum_matches, 0, sizeof(unsigned long long) ));
-	CUDA_CHECK_FUNCTION( cudaMemset( d_checksum_found, 0, sizeof(unsigned long long) ));
 
+	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
 	// Reduccion de los checksum
-	reductionKernel<<<numBloquesPat, hilosBloque>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
 	CUDA_CHECK_KERNEL();
 
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
@@ -503,8 +487,8 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 
 
-
-
+	checksum_matches = checksum_matches % CHECKSUM_MAX;
+	checksum_found = checksum_found % CHECKSUM_MAX;
 
 #ifdef DEBUG
 	/* DEBUG: Write results */
@@ -527,7 +511,6 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaFree( d_seq ) );
 	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found ) );
 
-	free( seq_matches );
 
 /*
  *
