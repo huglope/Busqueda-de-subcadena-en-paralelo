@@ -103,17 +103,22 @@ __global__ void checksumKernel(unsigned long* d_pat_found, unsigned long *d_pat_
 	/*__shared__ unsigned long long temp_checksum_found [blockDim.x];
 	__shared__ unsigned long long temp_checksum_matches [blockDim.x];
 	__shared__ unsigned long long temp_pat_matches [blockDim.x];
-*/
+
+
+	extern __shared__ unsigned long long temp_pat_matches [];
 	extern __shared__ unsigned long long temp_checksum_found [];
 	extern __shared__ unsigned long long temp_checksum_matches [];
-	extern __shared__ unsigned long long temp_pat_matches [];
 
-/*
-	extern __shared__ unsigned long long shared_mem[];
-    unsigned long long* temp_checksum_found = shared_mem;
-    unsigned long long* temp_checksum_matches = shared_mem + blockDim.x;
-    unsigned long long* temp_pat_matches = shared_mem + 2 * blockDim.x;
 */
+	extern __shared__ unsigned long long shared_mem[];
+    unsigned long long* temp_checksum_found;
+    unsigned long long* temp_checksum_matches;
+    unsigned long long* temp_pat_matches;
+
+	temp_pat_matches = &shared_mem;
+	temp_checksum_found = &shared_mem + sizeof(shared_mem)/3;
+	temp_checksum_matches = &shared_mem + sizeof(shared_mem)/3*2;
+
 	// Inicializar los valores de los checksums
     if (threadIdx.x < blockDim.x) {
         temp_checksum_found[threadIdx.x] = 0;
@@ -523,7 +528,7 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_matches, &pat_matches, sizeof(unsigned long long), cudaMemcpyHostToDevice ) );
 	
 	size_t sharedMemSize = hilosBloque * sizeof(unsigned long);
-	checksumKernel<<<numBloquesPat, hilosBloque, sharedMemSize>>>(d_pat_found, d_pat_length, d_checksum_found, d_checksum_matches, d_pat_matches, pat_number);
+	checksumKernel<<<numBloquesPat, hilosBloque, sharedMemSize*3>>>(d_pat_found, d_pat_length, d_checksum_found, d_checksum_matches, d_pat_matches, pat_number);
 	CUDA_CHECK_KERNEL();
 
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
