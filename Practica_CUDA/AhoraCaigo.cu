@@ -76,11 +76,11 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 // Kernel para comprobar si hay coincidencias
 __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
-	unsigned long start, ind;
-	char *my_pat;
 	unsigned long tid=(unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+
 	if(tid < pat_number){
-		my_pat  = d_pattern[tid];
+		unsigned long start, ind;
+		char *my_pat = d_pattern[tid];
 		d_pat_found[tid] = NOT_FOUND;
 		
 		for( start = 0; start <= seq_length - d_pat_length[tid]; start++) {
@@ -97,42 +97,37 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 
 // Kernel para la reduccion 
 __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
-    unsigned long tid = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned long tid = threadIdx.x;
+	unsigned long i = threadIdx.x + blockIdx.x * blockDim.x;
+	
 
     __shared__ unsigned long long shared_checksum_found[256];
     __shared__ unsigned long long shared_checksum_matches[256];
 	__shared__ unsigned long long shared_matches[256];
 
-    // Inicializar las sumas parciales a cero
-    shared_checksum_found[threadIdx.x] = 0;
-    shared_checksum_matches[threadIdx.x] = 0;
-	shared_matches[threadIdx.x] = 0;
 
     // Calcular las sumas parciales de los hilos
-    if (tid < pat_number) {
-        if (d_pat_found[tid] != NOT_FOUND) {
-            shared_checksum_found[threadIdx.x] += d_pat_found[tid];
-            shared_checksum_matches[threadIdx.x] += d_pat_length[tid];
-			shared_matches[threadIdx.x] = 1;
+    if (i < pat_number) {
+        if (d_pat_found[i] != NOT_FOUND) {
+            shared_checksum_found[tid] += d_pat_found[i];
+            shared_checksum_matches[tid] += d_pat_length[i];
+			shared_matches[tid] = 1;
         }
     }
-	else {
-		return;
-	}
     __syncthreads();
 
     // Reducción en el bloque utilizando un árbol binario
-	unsigned long offset;
-    for (offset = blockDim.x / 2; offset > 0; offset >>= 1) {
-        if (threadIdx.x < offset) {
-            shared_checksum_found[threadIdx.x] += shared_checksum_found[threadIdx.x + offset];
-            shared_checksum_matches[threadIdx.x] += shared_checksum_matches[threadIdx.x + offset];
-			shared_matches[threadIdx.x] += shared_matches[threadIdx.x + offset];
+	unsigned long s;
+    for (s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) {
+            shared_checksum_found[tid] += shared_checksum_found[tid + s];
+            shared_checksum_matches[tid] += shared_checksum_matches[tid + s];
+			shared_matches[tid] += shared_matches[tid + s];
         }
         __syncthreads();
     }
 
-    if (threadIdx.x == 0) {
+    if (tid == 0) {
         atomicAdd(d_checksum_found, shared_checksum_found[0] % CHECKSUM_MAX);
         atomicAdd(d_checksum_matches, shared_checksum_matches[0] % CHECKSUM_MAX);
 		atomicAdd(d_pat_matches, shared_matches[0]);
@@ -503,9 +498,9 @@ int main(int argc, char *argv[]) {
 	reductionKernel<<<numBloquesPat, hilosBloque>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
 	CUDA_CHECK_KERNEL();
 
-	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
-	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
-	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
+	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
+	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
+	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 
 
 
