@@ -7,7 +7,7 @@
  * Computacion Paralela, Grado en Informatica (Universidad de Valladolid)
  * 2023/2024
  *
- * v1.2
+ * v1.0.1
  *
  * (c) 2024, Arturo Gonzalez-Escribano
  */
@@ -23,7 +23,7 @@
 #define	NOT_FOUND	-1
 
 /* Arbitrary value to restrict the checksums period */
-#define CHECKSUM_MAX	65535
+#define CHECKSUM_MAX	65536
 
 /*
  * Function: Increment the number of pattern matches on the sequence positions
@@ -34,13 +34,14 @@
  * START HERE: DO NOT CHANGE THE CODE ABOVE THIS POINT
  *
  */
-void increment_matches( int pat, unsigned long *pat_found, unsigned long *pat_length, int *seq_matches ) {
+//void increment_matches( int pat, unsigned long *pat_found, long *pat_length, int *seq_matches ) {
+void increment_matches( int start_index, int end_index, int *seq_matches ) {
 	int ind;	
-	for( ind=0; ind<pat_length[pat]; ind++) {
-		if ( seq_matches[ pat_found[pat] + ind ] == (unsigned long)NOT_FOUND )
-			seq_matches[ pat_found[pat] + ind ] = 0;
-		else
-			seq_matches[ pat_found[pat] + ind ] ++;
+	for( ind=start_index; ind<end_index; ind++) {
+//		if ( seq_matches[ ind ] != NOT_FOUND )
+			seq_matches[ ind ]  ++;
+//		else
+//			seq_matches[ ind ]= 0;
 	}
 }
 /*
@@ -72,7 +73,7 @@ double cp_Wtime(){
 char *pattern_allocate( rng_t *random, unsigned long pat_rng_length_mean, unsigned long pat_rng_length_dev, unsigned long seq_length, unsigned long *new_length ) {
 
 	/* Random length */
-	unsigned long length = (unsigned long)rng_next_normal( random, (double)pat_rng_length_mean, (double)pat_rng_length_dev );
+	double length = (unsigned long)rng_next_normal( random, (double)pat_rng_length_mean, (double)pat_rng_length_dev );
 	if ( length > seq_length ) length = seq_length;
 	if ( length <= 0 ) length = 1;
 
@@ -117,7 +118,7 @@ void generate_rng_sequence( rng_t *random, float prob_G, float prob_C, float pro
 /*
  * Function: Copy a sample of the sequence
  */
-void copy_sample_sequence( rng_t *random, char *sequence, unsigned long seq_length, unsigned long pat_samp_loc_mean, unsigned long pat_samp_loc_dev, char *pattern, unsigned long length) {
+void generate_sample_sequence( rng_t *random, char *sequence, unsigned long seq_length, unsigned long pat_samp_loc_mean, unsigned long pat_samp_loc_dev, char *pattern, unsigned long length) {
 	/* Choose location */
 	unsigned long  location = (unsigned long)rng_next_normal( random, (double)pat_samp_loc_mean, (double)pat_samp_loc_dev );
 	if ( location > seq_length - length ) location = seq_length - length;
@@ -128,21 +129,6 @@ void copy_sample_sequence( rng_t *random, char *sequence, unsigned long seq_leng
 	#pragma omp parallel for
 	for( ind=0; ind<length; ind++ )
 		pattern[ind] = sequence[ind+location];
-}
-
-/*
- * Function: Regenerate a sample of the sequence
- */
-void generate_sample_sequence( rng_t *random, rng_t random_seq, float prob_G, float prob_C, float prob_A, unsigned long seq_length, unsigned long pat_samp_loc_mean, unsigned long pat_samp_loc_dev, char *pattern, unsigned long length ) {
-	/* Choose location */
-	unsigned long  location = (unsigned long)rng_next_normal( random, (double)pat_samp_loc_mean, (double)pat_samp_loc_dev );
-	if ( location > seq_length - length ) location = seq_length - length;
-	if ( location <= 0 ) location = 0;
-
-	/* Regenerate sample */
-	rng_t local_random = random_seq;
-	rng_skip( &local_random, location );
-	generate_rng_sequence( &local_random, prob_G, prob_C, prob_A, pattern, length);
 }
 
 
@@ -228,6 +214,7 @@ int main(int argc, char *argv[]) {
 	/* 2.2. Allocate and fill patterns */
 	/* 2.2.1 Allocate main structures */
 	int pat_number = pat_rng_num + pat_samp_num;
+	char **patterns;
 	unsigned long *pat_length = (unsigned long *)malloc( sizeof(unsigned long) * pat_number );
 	char **pattern = (char **)malloc( sizeof(char*) * pat_number );
 	if ( pattern == NULL || pat_length == NULL ) {
@@ -286,15 +273,10 @@ int main(int argc, char *argv[]) {
 		}
 		else if ( pat_type[ind] == PAT_TYPE_SAMP ) {
 			pattern[ind] = pattern_allocate( &random, pat_samp_length_mean, pat_samp_length_dev, seq_length, &pat_length[ind] );
-#ifdef REGENERATE_SAMPLE_PATTERNS
-			rng_t random_seq_orig = rng_new( seed );
-			generate_sample_sequence( &random, random_seq_orig, prob_G, prob_C, prob_A, seq_length, pat_samp_loc_mean, pat_samp_loc_dev, pattern[ind], pat_length[ind] );
-#else
-			copy_sample_sequence( &random, sequence, seq_length, pat_samp_loc_mean, pat_samp_loc_dev, pattern[ind], pat_length[ind] );
-#endif
+			generate_sample_sequence( &random, sequence, seq_length, pat_samp_loc_mean, pat_samp_loc_dev, pattern[ind], pat_length[ind] );
 		}
 		else {
-			fprintf(stderr,"\n-- Error internal: Paranoic check! A pattern without type at position %lu\n", ind );
+			fprintf(stderr,"\n-- Error internal: Paranoic check! A pattern without type at position %d\n", ind );
 			exit( EXIT_FAILURE );
 		}
 	}
@@ -310,7 +292,7 @@ int main(int argc, char *argv[]) {
 	printf("Patterns: %d ( rng: %d, samples: %d )\n", pat_number, pat_rng_num, pat_samp_num );
 	int debug_pat;
 	for( debug_pat=0; debug_pat<pat_number; debug_pat++ ) {
-		printf( "Pat[%d]: ", debug_pat );
+		printf( "Pat[%lu]: ", debug_pat );
 		for( ind=0; ind<pat_length[debug_pat]; ind++ ) 
 			printf( "%c", pattern[debug_pat][ind] );
 		printf("\n");
@@ -323,6 +305,9 @@ int main(int argc, char *argv[]) {
 	 */
 	argc = 0;
 	argv = NULL;
+	prob_G = 0.0;
+	prob_C = 0.0;
+	prob_A = 0.0;
 	pat_rng_num = 0;
 	pat_rng_length_mean = 0;
 	pat_rng_length_dev = 0;
@@ -331,25 +316,23 @@ int main(int argc, char *argv[]) {
 	pat_samp_length_dev = 0;
 	pat_samp_loc_mean = 0;
 	pat_samp_loc_dev = 0;
-	pat_samp_mix = '0';
+	seed = 0;
 
 	/* 2.3. Other result data and structures */
 	int pat_matches = 0;
-
-	/* 2.3.1. Other results related to patterns */
 	unsigned long *pat_found;
-	pat_found = (unsigned long *)malloc( sizeof(unsigned long) * pat_number );
-	if ( pat_found == NULL ) {
-		fprintf(stderr,"\n-- Error allocating aux pattern structure for size: %d\n", pat_number );
-		exit( EXIT_FAILURE );
-	}
-	/* 2.3.2. Other results related to the main sequence */
 	int *seq_matches;
 	int *seq_longest;
+
+	pat_found = (unsigned long *)malloc( sizeof(unsigned long) * pat_number );
 	seq_matches = (int *)malloc( sizeof(int) * seq_length );
 	seq_longest = (int *)malloc( sizeof(int) * seq_length );
 	if ( seq_matches == NULL || seq_longest == NULL ) {
 		fprintf(stderr,"\n-- Error allocating aux sequence structures for size: %lu\n", seq_length );
+		exit( EXIT_FAILURE );
+	}
+	if ( pat_found == NULL ) {
+		fprintf(stderr,"\n-- Error allocating aux pattern structure for size: %lu\n", pat_length );
 		exit( EXIT_FAILURE );
 	}
 
@@ -364,68 +347,60 @@ int main(int argc, char *argv[]) {
  */
 
 	/* 4. Initialize ancillary structures */
-	for( ind=0; ind<pat_number; ind++) {
-		pat_found[ind] = (unsigned long)NOT_FOUND;
-	}
-	for( ind=0; ind<seq_length; ind++) {
-		seq_matches[ind] = 0;
-		seq_longest[ind] = 0;
-	}
+	unsigned long start, pat, indi;
+	unsigned long  checksum_matches = 0, checksum_found = 0, checksum_longest = 0;
 
-	/* 5. Search for each pattern */
-	unsigned long start;
-	unsigned long pat;
-	for( pat=0; pat < pat_number; pat++ ) {
+  #pragma omp parallel private(start,ind,pat)
+  {
+    #pragma omp for reduction(+:pat_matches,checksum_matches,checksum_found) schedule(dynamic)
+    for( pat=0; pat < pat_number; pat++ ) {
+      pat_found[pat] = NOT_FOUND;
+      /* 5.1. For each posible starting position */
+      for( start=0; start <= seq_length - pat_length[pat]; start++) {
+        /* 5.1.1. For each pattern element */
+        for(ind= 0; ind<pat_length[pat] ; ind++){
+          /* Stop this test when different nucleotids are found */
+          if ( sequence[start+ind] != pattern[pat][ind] ) break;
+        }
+        /* 5.1.2. Check if the loop ended with a match */
+        if ( ind  ==  pat_length[pat]) {
+        /* 4.2.1. Increment the number of pattern matches on the sequence positions */
+          pat_found[pat] = start;
+          checksum_matches =(checksum_matches+ pat_length[pat])%CHECKSUM_MAX;
+          checksum_found  = (start+checksum_found) %CHECKSUM_MAX;
+	  #pragma omp atomic
+          pat_matches++;
+            break;
+        }
+      }
+    }
 
-		/* 5.1. For each posible starting position */
-		for( start=0; start <= seq_length - pat_length[pat]; start++) {
+    #pragma omp for reduction(+:checksum_longest) schedule(guided)
+    for( indi=0; indi < seq_length; indi++) {
+                  seq_longest[indi] = 0;
+                  for( pat=0; pat<pat_number; pat++ ) {
+                          if ( pat_found[pat] != NOT_FOUND )
+                              if ( seq_longest[indi] < pat_length[pat] )
+                                  if ( pat_found[pat] <= indi) 
+                                    if(indi < pat_found[pat] + pat_length[pat] )
+                                                  seq_longest[indi] = pat_length[pat];
+                  }
+      checksum_longest = (checksum_longest + seq_longest[indi]) %CHECKSUM_MAX;
+    }
 
-			/* 5.1.1. For each pattern element */
-			for( ind=0; ind<pat_length[pat]; ind++) {
-				/* Stop this test when different nucleotids are found */
-				if ( sequence[start + ind] != pattern[pat][ind] ) break;
-			}
-			/* 5.1.2. Check if the loop ended with a match */
-			if ( ind == pat_length[pat] ) {
-				pat_matches++;
-				pat_found[pat] = start;
-				break;
-			}
-		}
+  }
 
-		/* 5.2. Pattern found */
-		if ( pat_found[pat] != (unsigned long)NOT_FOUND ) {
-			/* 4.2.1. Increment the number of pattern matches on the sequence positions */
-			increment_matches( pat, pat_found, pat_length, seq_matches );
-		}
-	}
-
-	/* 6. Annotate the index of the longest pattern matched on each position */
-	for( ind=0; ind < seq_length; ind++) {
-		seq_longest[ind] = 0;
-		for( pat=0; pat<pat_number; pat++ ) {
-			if ( pat_found[pat] != (unsigned long)NOT_FOUND )
-				if ( pat_found[pat] <= ind && ind < pat_found[pat] + pat_length[pat] )
-					if ( seq_longest[ind] < pat_length[pat] )
-						seq_longest[ind] = pat_length[pat];
-		}
-	}
 
 	/* 7. Check sums */
-	unsigned long checksum_matches = 0;
-	unsigned long checksum_longest = 0;
-	unsigned long checksum_found = 0;
-	for( ind=0; ind < pat_number; ind++) {
-		if ( pat_found[ind] != (unsigned long)NOT_FOUND )
-			checksum_found = ( checksum_found + pat_found[ind] ) % CHECKSUM_MAX;
-	}
-	for( ind=0; ind < seq_length; ind++) {
-		if ( seq_matches[ind] != (unsigned long)NOT_FOUND )
-			checksum_matches = ( checksum_matches + seq_matches[ind] ) % CHECKSUM_MAX;
-	}
-	for( ind=0; ind < seq_length; ind++) {
-		checksum_longest = ( checksum_longest + seq_longest[ind] ) % CHECKSUM_MAX;
-	}
+  checksum_found = checksum_found %CHECKSUM_MAX;
+  checksum_matches = checksum_matches %CHECKSUM_MAX;
+  checksum_longest=checksum_longest %CHECKSUM_MAX;
+
+/*
+ *
+ * STOP HERE: DO NOT CHANGE THE CODE BELOW THIS POINT
+ *
+ */
 
 #ifdef DEBUG
 	/* DEBUG: Write results */
@@ -448,13 +423,6 @@ int main(int argc, char *argv[]) {
 	printf("-----------------\n");
 #endif // DEBUG
 
-
-/*
- *
- * STOP HERE: DO NOT CHANGE THE CODE BELOW THIS POINT
- *
- */
-
 	/* 8. Stop global time */
 	ttotal = cp_Wtime() - ttotal;
 
@@ -464,7 +432,7 @@ int main(int argc, char *argv[]) {
 	printf("Time: %lf\n", ttotal );
 
 	/* 9.2. Results: Statistics */
-	printf("Result: %d, %lu, %lu, %lu\n\n", 
+	printf("Result: pat_matches:%d, checksum_found:%lu, checksum_matches:%lu, checksum_longest:%lu\n\n", 
 			pat_matches,
 			checksum_found,
 			checksum_matches,

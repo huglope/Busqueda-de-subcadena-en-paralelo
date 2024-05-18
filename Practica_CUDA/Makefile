@@ -1,42 +1,63 @@
-# Location of CUDA
-CUDA_DIR ?= /usr/local/cuda-12.4
-CUDA_LIB_DIR := -L$(CUDA_DIR)/lib64
-CUDA_INC_DIR := -I$(CUDA_DIR)/include
+#
+# Exact genetic sequence alignment
+#
+# Parallel computing (Degree in Computer Engineering)
+# 2023/2024
+#
+# (c) 2024 Arturo Gonzalez-Escribano
+# Grupo Trasgo, Universidad de Valladolid (Spain)
+#
 
 # Compilers
-GCC	 := g++
-NVCC := $(CUDA_DIR)/bin/nvcc -ccbin $(GCC)
+CC=gcc
+OMPFLAG=-fopenmp
+MPICC=mpicc
+CUDACC=nvcc
 
-# Common Includes and Libs for CUDA
-CUDA_INC_COMMON = -I../common
-CUDA_LD_LIBS := -lcudart
+# Flags for optimization and external libs
+LIBS=-lm
+FLAGS=-O3 -Wall
+CUDAFLAGS=-O3 -Xcompiler -Wall
 
-# Internal Flags
-CC_FLAGS     := -O3
-LD_FLAGS     := -lm
-NVCC_FLAGS   := -m64
-GENCODE_FLAGS = -gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_90,code=compute_90
+# Targets to build
+OBJS=align_seq align_omp align_mpi align_cuda
 
-ALL_CC_FLAGS :=
-ALL_CC_FLAGS += $(NVCC_FLAGS)
+# Rules. By default show help
+help:
+	@echo
+	@echo "Exact genetic sequence alignment"
+	@echo
+	@echo "Group Trasgo, Universidad de Valladolid (Spain)"
+	@echo
+	@echo "make align_seq	Build only the sequential version"
+	@echo "make align_omp	Build only the OpenMP version"
+	@echo "make align_mpi	Build only the MPI version"
+	@echo "make align_cuda	Build only the CUDA version"
+	@echo
+	@echo "make all	Build all versions (Sequential, OpenMP, MPI, CUDA)"
+	@echo "make debug	Build all version with demo output for small sequences"
+	@echo "make clean	Remove targets"
+	@echo
 
-ALL_LD_FLAGS :=
-ALL_LD_FLAGS += $(ALL_CC_FLAGS)
+all: $(OBJS)
 
-ALL_CC_FLAGS += --threads 0 --std=c++11 -w
+align_seq: align.c rng.c
+	$(CC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
 
-FILE = 
+align_omp: align_omp.c rng.c
+	$(CC) $(FLAGS) $(DEBUG) $(OMPFLAG) $< $(LIBS) -o $@
 
-build: $(FILE)
+align_mpi: align_mpi.c rng.c
+	$(MPICC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
 
-$(FILE).o: $(FILE).cu
-		   $(NVCC) $(CUDA_INC_DIR) $(CUDA_INC_COMMON) $(ALL_CC_FLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+align_cuda: align_cuda.cu rng.c
+	$(CUDACC) $(CUDAFLAGS) $(DEBUG) $< $(LIBS) -o $@
 
-$(FILE): $(FILE).o
-		 $(NVCC) $(NVCC_FLAGS) $(GENCODE_FLAGS) -o $@ $+
 
-run:
-	./$(FILE) --gsx=4 --gsy=4 --bsx=2 --bsy=2
-
+# Remove the target files
 clean:
-	rm -f *.o $(FILE)
+	rm -rf $(OBJS)
+
+# Compile in debug mode
+debug:
+	make DEBUG="-DDEBUG -g" all
