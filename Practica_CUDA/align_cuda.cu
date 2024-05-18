@@ -74,30 +74,24 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 }
 
 // Kernel para comprobar si hay coincidencias
-__global__ void checkMatches(char *d_seq, char *d_pattern_pat, unsigned long pat_length_pat, unsigned long* d_pat_found_pat, unsigned long seq_length, int *d_pat_matches){
-	unsigned long start=(unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+__global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
-	if (start <= seq_length - pat_length_pat){
-		unsigned long lind;
-
-		for( lind=0; lind<pat_length_pat; lind++) {
-			if ( d_seq[start + lind] != d_pattern_pat[lind] ) break;
-		}
-		
-		if ( lind == pat_length_pat ) {
-			atomicAdd(d_pat_matches, 1);
-			*d_pat_found_pat=start;
-		}
-
-		// Completar
-		/* 5.1.2. Check if the loop ended with a match */
-		//if ( ind == pat_length[pat] ) {
-		//	pat_matches++;
-		//	pat_found[pat] = start;
-		//	break;
-		//}
+	unsigned long start, ind;
+	char *my_pat;
+	unsigned long tid=(unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+	if(tid < pat_number){
+		my_pat  = d_pattern[tid];
+		for( start = 0; start < seq_length - d_pat_length[tid]; start++) {
+			for( ind = 0; ind < d_pat_length[tid]; ind ++)
+				if ( d_seq[start + ind] != my_pat[ind] ) break;
+			if(ind == d_pat_length[tid]){
+				d_pat_found[tid] = start;
+				break;
+			}
+		}	
 	}
 }
+
 
 // Kernel para la reduccion
 __global__ void checksumKernel(unsigned long* pat_found, int* seq_matches, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, int pat_number, int seq_length) {
@@ -466,48 +460,49 @@ int main(int argc, char *argv[]) {
 
 	/* 4. Initialize ancillary structures */
 	for( ind=0; ind<pat_number; ind++) {
-		pat_found[ind] = (unsigned long)NOT_FOUND;
+		pat_found[ind] = NOT_FOUND;
 	}
-	for( lind=0; lind<seq_length; lind++) {
+	/*for( lind=0; lind<seq_length; lind++) {
 		seq_matches[lind] = 0;
-	}
+	}*/
 
 	// Variables para el kernel
-	char *d_pattern_pat;
-	unsigned long *d_pat_length_pat;
-	unsigned long *d_pat_found_pat;
-	int *d_pat_matches;
-	int *d_seq_matches;
+	//unsigned long *d_pat_length_pat;
+	unsigned long *d_pat_found;
+	//int *d_pat_matches;
+	//int *d_seq_matches;
 
-	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found_pat, sizeof(unsigned long) ) );
-	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_matches, sizeof(int) ) );
-	CUDA_CHECK_FUNCTION( cudaMalloc( &d_seq_matches, sizeof(int) * seq_length ) );
+	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found, sizeof(unsigned long)*pat_number ) );
+	//CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_matches, sizeof(int) ) );
+	//CUDA_CHECK_FUNCTION( cudaMalloc( &d_seq_matches, sizeof(int) * seq_length ) );
+	
+	for( ind=0; ind<pat_number; ind++ ) {
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length[ind], pat_length[ind], sizeof(unsigned long), cudaMemcpyHostToDevice ) );
+	}
+
 
 	/* 5. Search for each pattern */
-	unsigned long start;
-	int pat;
-	for( pat=0; pat < pat_number; pat++ ) {
+	//unsigned long start;
+	//int pat;
+	//for( pat=0; pat < pat_number; pat++ ) {
 
 		// Reservar memoria en el device
-	    CUDA_CHECK_FUNCTION( cudaMalloc( &d_pattern_pat, sizeof(char) * pat_length[pat] ) );
 
 		// Copiar los datos al device
-		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pattern_pat, pattern[pat], sizeof(char) * pat_length[pat], cudaMemcpyHostToDevice ) );
-		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_found_pat, &pat_found[pat], sizeof(unsigned long), cudaMemcpyHostToDevice ) );
-		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_matches, &pat_matches, sizeof(int), cudaMemcpyHostToDevice ));
-
+		CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_found, pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
+		
 		// Lanzar el kernel
 		//checkMatches<<<numBloques, hilosBloque>>>(d_seq, d_pattern_pat, pat_length[pat], d_pat_found_pat, seq_length, d_pat_matches);
-		checkMatches<<<grid, block>>>(d_seq, d_pattern_pat, pat_length[pat], d_pat_found_pat, seq_length, d_pat_matches);
+		checkMatches<<<grid, block>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
 		CUDA_CHECK_KERNEL();
 
 		// Traer los datos de vuelta
-		CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_found[pat], d_pat_found_pat, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
+		/*CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_found[pat], d_pat_found_pat, sizeof(unsigned long), cudaMemcpyDeviceToHost ) );
 		CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(int), cudaMemcpyDeviceToHost ) );
 		
 		// Liberar memoria
 		CUDA_CHECK_FUNCTION( cudaFree( d_pattern_pat ) );
-	}
+	}*/
 
 
 	/* 7. Check sums */
@@ -523,13 +518,10 @@ int main(int argc, char *argv[]) {
 	//}
 
 	// Variables para el kernel
-	unsigned long *d_pat_found;
 	unsigned long long *d_checksum_found, *d_checksum_matches;
-	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found, sizeof(unsigned long) * pat_number ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_found, sizeof(unsigned long) ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_matches, sizeof(unsigned long) ) );
 
-	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_found, pat_found, sizeof(unsigned long) * pat_number, cudaMemcpyHostToDevice ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_checksum_found, &checksum_found, sizeof(unsigned long), cudaMemcpyHostToDevice ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_checksum_matches, &checksum_matches, sizeof(unsigned long), cudaMemcpyHostToDevice ) );
 	
@@ -561,9 +553,6 @@ int main(int argc, char *argv[]) {
 	/* Free local resources */	
 
 	CUDA_CHECK_FUNCTION( cudaFree( d_seq ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found_pat ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_pat_matches ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_seq_matches ) );
 	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found ) );
 	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_found ) );
 	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_matches ) );
