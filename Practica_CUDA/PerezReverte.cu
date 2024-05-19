@@ -80,14 +80,17 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned long ind, pat;
 	char *my_pat;
+	unsigned long my_length, my_pat_found;
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
+		my_length = d_pat_length[pat];
+		my_pat_found = d_pat_found[pat];
 
-		if(tid <= seq_length - d_pat_length[pat] && (d_pat_found[pat] == NOT_FOUND || tid < d_pat_found[pat])){
-			for( ind = 0; ind < d_pat_length[pat]; ind ++)
+		if(tid <= seq_length - my_length && (my_pat_found == NOT_FOUND || tid < my_pat_found)){
+			for( ind = 0; ind < my_length; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind] ) break;
-			if(ind == d_pat_length[pat] && tid < d_pat_found[pat])
+			if(ind == my_length && tid < my_pat_found)
 				atomicMin( (unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 		}
 	}
