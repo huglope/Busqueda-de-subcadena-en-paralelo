@@ -79,7 +79,7 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
 	unsigned long tid=(unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned long   start, ind;
+	unsigned long start, ind;
 	unsigned long thid = tid % pat_number;
 	
 	if (tid < pat_number*NUM_BLOQUES_PAT || tid < pat_number){
@@ -88,8 +88,11 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 		if(tid < pat_number)
 			d_pat_found[tid] = NOT_FOUND;
 		__syncthreads();
+
+			// no entra ninguno, porque por algun motivo, el inicio es mayor que la condición del bucle
+		for( start = (tid/pat_number * seq_length/NUM_BLOQUES_PAT - d_pat_length[thid]) ; start > ((tid/pat_number+1) * seq_length/NUM_BLOQUES_PAT + d_pat_length[thid]); start++) {
 			
-		for( start = tid/pat_number * seq_length/NUM_BLOQUES_PAT - d_pat_length[thid] ; start <= (tid/pat_number+1) * seq_length/NUM_BLOQUES_PAT + d_pat_length[thid]; start++) {
+			d_pat_found[thid] = start;
 			if(start < 0 ) continue;
 			else if(start >= seq_length) break;
 			for( ind = 0; ind < d_pat_length[thid]; ind ++)
@@ -481,8 +484,8 @@ printf("timepo secuencia = %lf\n", cp_Wtime() - mitimempo);
 cudaDeviceSynchronize();
 printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
-	/* 7. Check sums */
 	
+	/* 7. Check sums */
 	unsigned long checksum_matches;
 	unsigned long checksum_found;
 
