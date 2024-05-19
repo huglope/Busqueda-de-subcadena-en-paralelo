@@ -429,8 +429,8 @@ int main(int argc, char *argv[]) {
 	/* 2.1. Allocate and fill sequence */
 	
 	unsigned long hilosBloque = NUM_HILOS_BLOQ; // Número de hilos por bloque
-    unsigned long numBloquesSeq = (seq_length % hilosBloque == 0)? seq_length / hilosBloque : seq_length / hilosBloque + 1; // Número de bloques necesarios para recorrer  la secuencia
-	unsigned long numBloquesPat = (pat_number % hilosBloque == 0) ? pat_number/hilosBloque : pat_number/hilosBloque + 1; // Número de bloques necesarios para recorrer los patrones
+    unsigned long numBloquesSeq = (seq_length + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer  la secuencia
+	unsigned long numBloquesPat = (pat_number + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer los patrones
 
 
 	// Variable para el kernel
