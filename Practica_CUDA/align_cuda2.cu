@@ -76,27 +76,43 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 }
 
 // Kernel para comprobar si hay coincidencias
-__global__ void checkMatches(char *d_seq, unsigned long pat, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
+__global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
-	unsigned long tid=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned long ind;
-	char *my_pat = d_pattern[pat];
+	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned long ind, pat, s;
+	char *my_pat;
 
-	if(tid == 0)
-		d_pat_found[pat] = NOT_FOUND;
-	__syncthreads();
+	extern __shared__ unsigned long long shared_pat_found[];
 
-	if(tid <= seq_length - d_pat_length[pat]){
-		for( ind = 0; ind < d_pat_length[pat]; ind ++)
-			if ( d_seq[tid + ind] != my_pat[ind] ) break;
-		if(ind == d_pat_length[pat])
-			atomicMin((unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
+	for(pat = 0; pat < pat_number; pat++){
+		my_pat = d_pattern[pat];
+		if(threadIdx.x == 0){
+			shared_pat_found[pat] = NOT_FOUND;
+		}		
+		__syncthreads();
+
+		if(tid <= seq_length - d_pat_length[pat]){
+			for( ind = 0; ind < d_pat_length[pat]; ind ++)
+				if ( d_seq[tid + ind] != my_pat[ind] ) break;
+			if(ind == d_pat_length[pat])
+				atomicMin( &shared_pat_found[pat], (unsigned long long ) tid);
+		}
 	}
-}
-__device__ void encuentraPatrones(char *d_seq, unsigned long numBloques, unsigned long numHilos, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 	
-	unsigned long tid=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
-	checkMatches<<<numBloques, numHilos>>> (d_seq, tid, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	__syncthreads();
+	if(threadIdx.x == 0)
+		for(pat = 0; pat < pat_number; pat++){
+			atomicMin( (unsigned long long*) &d_pat_found[pat], shared_pat_found[pat]);
+		}
+
+}
+
+//Inicializar el vector a NOT_FOUND
+__global__ void inicializarVector( unsigned long* vector, unsigned long tamano){
+
+	unsigned long tid = threadIdx.x + blockIdx.x * blockDim.x;
+	if(tid < tamano)
+		vector[tid] = NOT_FOUND;
 }
 
 // Kernel para la reduccion 
@@ -433,7 +449,11 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMalloc(&d_seq, sizeof(char)*seq_length) );
 
 	random = rng_new( seed );
+	//double mitimempo= cp_Wtime();
 	initializeSequence<<<numBloquesSeq, hilosBloque>>>(random, prob_G, prob_C, prob_A, seq_length, d_seq);
+	
+//cudaDeviceSynchronize();
+//printf("timepo secuencia = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
 		
 #ifdef DEBUG
@@ -459,19 +479,29 @@ int main(int argc, char *argv[]) {
 	// Variable para el kernel
 	unsigned long *d_pat_found;
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found, sizeof(unsigned long)*pat_number ) );
+	inicializarVector<<<numBloquesPat, hilosBloque>>>(d_pat_found, pat_number);
+	CUDA_CHECK_KERNEL();
 	
 	// Copiar los datos al device
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length, pat_length, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
 	
 	// Lanzar el kernel
-	encuentraPatrones<<<numBloquesPat, hilosBloque>>>(d_seq, numBloquesSeq, hilosBloque, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	//mitimempo= cp_Wtime();
+	checkMatches<<<numBloquesSeq, hilosBloque, pat_number* sizeof(unsigned long long)>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
 	CUDA_CHECK_KERNEL();
-
-	CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
 	
-	unsigned long pat;
-	for (pat = 0; pat < pat_number; pat++)
-		printf("pat = %i\tstart= %i\n", pat, pat_found[pat]);
+//cudaDeviceSynchronize();
+//printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
+
+CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
+	
+/*unsigned long pat;
+for (pat = 0 ; pat < pat_number; pat++)
+	if(pat_found[pat] > 511 && pat_found[pat] != NOT_FOUND)
+		printf("pat = %i\tstart = %i\n", pat, pat_found[pat]);
+*/
+
+	
 	/* 7. Check sums */
 	unsigned long checksum_matches;
 	unsigned long checksum_found;
@@ -487,13 +517,20 @@ int main(int argc, char *argv[]) {
 	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
 	// Reduccion de los checksum
+	//mitimempo= cp_Wtime();
 	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	
+//cudaDeviceSynchronize();
+	//printf("timepo reduccion = %lf\n", cp_Wtime() - mitimempo);
 	CUDA_CHECK_KERNEL();
 
+	//mitimempo= cp_Wtime();
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	
+//cudaDeviceSynchronize();
+//printf("timepo checksum = %lf\n", cp_Wtime() - mitimempo);
 
 	checksum_matches = checksum_matches % CHECKSUM_MAX;
 	checksum_found = checksum_found % CHECKSUM_MAX;

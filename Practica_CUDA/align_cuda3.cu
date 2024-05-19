@@ -75,39 +75,59 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 	else d_seq[tid] = 'T';
 }
 
-void calculateShifts(char **pattern, unsigned long pat, unsigned long* shifts, unsigned long* d_pat_length) {
-    unsigned long shift = 1;
-	unsigned long pos;
+// Funcion para calcular el LPS
+__device__ void computeLPS(char *pat, unsigned long *lps, unsigned long M) {
+	unsigned long len = 0;
+	unsigned long i = 1;
+	lps[0] = 0;
 
-    for (pos = 0; pos < pat_length[pat]; pos++) {
-        while (shift <= pos && pattern[pat][pos] != pattern[pat][pos - shift]) {
-            shift += shifts[pos - shift];
-        }
-        shifts[pos + 1] = shift;
-    }
+	while (i < M) {
+		if (pat[i] == pat[len]) {
+			len++;
+			lps[i] = len;
+			i++;
+		} else {
+			if (len != 0) {
+				len = lps[len - 1];
+			} else {
+				lps[i] = 0;
+				i++;
+			}
+		}
+	}
 }
 
-// Kernel para comprobar si hay coincidencias mediante el algoritmo KMP
-__global__ void checkMatches(char *d_seq, unsigned long pat, char **d_pattern, unsigned long* shifts ,unsigned long* d_pat_found, unsigned long seq_length, unsigned long *d_pat_length){
 
-	unsigned long i=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned long ind;
-	char *my_pat = d_pattern[pat];
+// Kernel para buscar las coincidencias usando el algoritmo de KMP
+__global__ void checkMatches(unsigned long* lps, char *d_seq, unsigned long pat, char **d_pattern, unsigned long *d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length) {
+	unsigned long tid = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned long i = tid;
+	unsigned long j = 0;
+	unsigned long s;
 
-	if(i == 0)
-		d_pat_found[pat] = NOT_FOUND;
-	__syncthreads();
+	computeLPS(d_pattern[pat], lps, d_pat_length[pat]);
 
-	if (i <= seq_length - d_pat_length[pat]) {
-        int j = 0;
-        while (j < d_pat_length[pat] && my_pat[j] == d_seq[i + j]) {
-            j++;
-        }
-        if (j == d_pat_length[pat]) {
-            atomicMin((unsigned long long*) &d_pat_found[pat], (unsigned long long ) i);
-        }
-    }
+	while (i < seq_length) {
+		if (d_seq[i] == d_pattern[pat][j]) {
+			i++;
+			j++;
+		}
+
+		if (j == d_pat_length[pat]) {
+			d_pat_found[pat] = i - j;
+			return;
+		} else if (i < seq_length && d_seq[i] != d_pattern[pat][j]) {
+			if (j != 0) {
+				j = lps[j - 1];
+			} else {
+				i = i + 1;
+			}
+		}
+	}
+	d_pat_found[pat] = NOT_FOUND;
 }
+
+
 
 
 // Kernel para la reduccion 
@@ -472,25 +492,20 @@ printf("timepo secuencia = %lf\n", cp_Wtime() - mitimempo);
 	/* 5. Search for each pattern */
 
 	// Variable para el kernel
-	unsigned long *d_pat_found, *d_shifts;
-	
+	unsigned long *d_pat_found, *lps;
+	CUDA_CHECK_FUNCTION( cudaMalloc( &lps, sizeof(unsigned long)*seq_length ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_pat_found, sizeof(unsigned long)*pat_number ) );
-	CUDA_CHECK_FUNCTION( cudaMalloc( &d_shifts, sizeof(unsigned long)*(seq_length+1) ));
-
+	
 	// Copiar los datos al device
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length, pat_length, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
 	
 	// Lanzar el kernel
 	mitimempo= cp_Wtime();
+	
 	unsigned long pat;
 	for(pat = 0; pat < pat_number; pat++){
-
-		calculateShifts(d_pattern, pat, d_shifts, d_pat_length);
+		checkMatches<<<numBloquesSeq, hilosBloque>>>(lps, d_seq, pat, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
 		CUDA_CHECK_KERNEL();
-
-		checkMatches<<<(seq_length+255)/256, 256>>>(d_seq, pat, d_pattern, d_shifts, d_pat_found, seq_length, d_pat_length);
-		CUDA_CHECK_KERNEL();
-
 	}	
 cudaDeviceSynchronize();
 printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
