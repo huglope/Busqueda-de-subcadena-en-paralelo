@@ -58,6 +58,8 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
+#define NUM_BLOQUES_PAT 1
+
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
@@ -74,23 +76,21 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 }
 
 // Kernel para comprobar si hay coincidencias
-__global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
+__global__ void checkMatches(char *d_seq, unsigned long pat, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
-	unsigned long tid=(unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned long tid=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned long ind;
+	char *my_pat = d_pattern[pat];
 
-	if(tid < pat_number){
-		unsigned long start, ind;
-		char *my_pat = d_pattern[tid];
-		d_pat_found[tid] = NOT_FOUND;
-		
-		for( start = 0; start <= seq_length - d_pat_length[tid]; start++) {
-			for( ind = 0; ind < d_pat_length[tid]; ind ++)
-				if ( d_seq[start + ind] != my_pat[ind] ) break;
-			if(ind == d_pat_length[tid]){
-				d_pat_found[tid] = start;
-				break;
-			}
-		}
+	if(tid == 0)
+		d_pat_found[pat] = NOT_FOUND;
+	__syncthreads();
+
+	if(tid <= seq_length - d_pat_length[pat]){
+		for( ind = 0; ind < d_pat_length[pat]; ind ++)
+			if ( d_seq[tid + ind] != my_pat[ind] ) break;
+		if(ind == d_pat_length[pat])
+			atomicMin((unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 	}
 }
 
@@ -422,6 +422,7 @@ int main(int argc, char *argv[]) {
     unsigned long numBloquesSeq = (seq_length % hilosBloque == 0)? seq_length / hilosBloque : seq_length / hilosBloque + 1; // Número de bloques necesarios para recorrer  la secuencia
 	unsigned long numBloquesPat = (pat_number % hilosBloque == 0) ? pat_number/hilosBloque : pat_number/hilosBloque + 1; // Número de bloques necesarios para recorrer los patrones
 
+
 	// Variable para el kernel
 	char *d_seq;
 
@@ -464,14 +465,18 @@ printf("timepo secuencia = %lf\n", cp_Wtime() - mitimempo);
 	
 	// Lanzar el kernel
 	mitimempo= cp_Wtime();
-	checkMatches<<<numBloquesPat, hilosBloque>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
-	
+	unsigned long pat;
+	for(pat = 0; pat < pat_number; pat++){
+		checkMatches<<<numBloquesSeq, hilosBloque>>>(d_seq, pat, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+		CUDA_CHECK_KERNEL();
+	}	
 cudaDeviceSynchronize();
 printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
-	CUDA_CHECK_KERNEL();
 
-	/* 7. Check sums */
+
+
 	
+	/* 7. Check sums */
 	unsigned long checksum_matches;
 	unsigned long checksum_found;
 
