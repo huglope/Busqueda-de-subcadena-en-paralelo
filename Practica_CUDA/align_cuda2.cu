@@ -481,7 +481,7 @@ int main(int argc, char *argv[]) {
 //cudaDeviceSynchronize();
 //printf("timepo patrones = %lf\n", cp_Wtime() - mitimempo);
 
-CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
+//CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
 	
 /*unsigned long pat;
 for (pat = 0 ; pat < pat_number; pat++)
