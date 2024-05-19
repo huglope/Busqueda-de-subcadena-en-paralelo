@@ -58,7 +58,7 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
-#define NUM_BLOQUES_PAT 1
+#define NUM_HILOS_BLOQ 256
 
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
@@ -426,7 +426,7 @@ int main(int argc, char *argv[]) {
  */
 	/* 2.1. Allocate and fill sequence */
 	
-	unsigned long hilosBloque = 512; // Número de hilos por bloque
+	unsigned long hilosBloque = NUM_HILOS_BLOQ; // Número de hilos por bloque
     unsigned long numBloquesSeq = (seq_length % hilosBloque == 0)? seq_length / hilosBloque : seq_length / hilosBloque + 1; // Número de bloques necesarios para recorrer  la secuencia
 	unsigned long numBloquesPat = (pat_number % hilosBloque == 0) ? pat_number/hilosBloque : pat_number/hilosBloque + 1; // Número de bloques necesarios para recorrer los patrones
 
