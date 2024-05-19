@@ -76,27 +76,28 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 }
 
 // Kernel para comprobar si hay coincidencias
-__global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
+__global__ void checkMatches(char *d_seq, unsigned long pat, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
 	unsigned long tid=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned long ind, pat;
-	char *my_pat;
+	unsigned long ind;
+	char *my_pat = d_pattern[pat];
 
-	for(pat = 0; pat < pat_number; pat++){
-		my_pat = d_pattern[pat];
-		if(tid == 0)
-			d_pat_found[pat] = NOT_FOUND;
-		__syncthreads();
+	if(tid == 0)
+		d_pat_found[pat] = NOT_FOUND;
+	__syncthreads();
 
-		if(tid <= seq_length - d_pat_length[pat]){
-			for( ind = 0; ind < d_pat_length[pat]; ind ++)
-				if ( d_seq[tid + ind] != my_pat[ind] ) break;
-			if(ind == d_pat_length[pat])
-				atomicMin((unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
-		}
+	if(tid <= seq_length - d_pat_length[pat]){
+		for( ind = 0; ind < d_pat_length[pat]; ind ++)
+			if ( d_seq[tid + ind] != my_pat[ind] ) break;
+		if(ind == d_pat_length[pat])
+			atomicMin((unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 	}
 }
-
+__device__ void encuentraPatrones(char *d_seq, unsigned long numBloques, unsigned long numHilos, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
+	
+	unsigned long tid=(unsigned long)  threadIdx.x + blockIdx.x*blockDim.x;
+	checkMatches<<<numBloques, numHilos>>> (d_seq, tid, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+}
 
 // Kernel para la reduccion 
 __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
@@ -463,8 +464,14 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMemcpy( d_pat_length, pat_length, sizeof(unsigned long)*pat_number, cudaMemcpyHostToDevice ) );
 	
 	// Lanzar el kernel
-	checkMatches<<<numBloquesSeq, hilosBloque>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	encuentraPatrones<<<numBloquesPat, hilosBloque>>>(d_seq, numBloquesSeq, hilosBloque, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	CUDA_CHECK_KERNEL();
+
+	CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
 	
+	unsigned long pat;
+	for (pat = 0; pat < pat_number; pat++)
+		printf("pat = %i\tstart= %i\n", pat, pat_found[pat]);
 	/* 7. Check sums */
 	unsigned long checksum_matches;
 	unsigned long checksum_found;
