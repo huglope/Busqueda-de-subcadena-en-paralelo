@@ -82,29 +82,29 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 	unsigned long ind, pat, s;
 	char *my_pat;
 
-	extern __shared__ unsigned long long shared_pat_found[];
+	//extern __shared__ unsigned long long shared_pat_found[];
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
-		if(threadIdx.x == 0){
+		/*if(threadIdx.x == 0){
 			shared_pat_found[pat] = NOT_FOUND;
 		}		
-		__syncthreads();
+		__syncthreads();*/
 
 		if(tid <= seq_length - d_pat_length[pat]){
 			for( ind = 0; ind < d_pat_length[pat]; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind] ) break;
-			if(ind == d_pat_length[pat])
-				atomicMin( &shared_pat_found[pat], (unsigned long long ) tid);
+			if(ind == d_pat_length[pat] && tid < d_pat_found[pat])
+				atomicMin( (unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 		}
 	}
 	
-	__syncthreads();
+	/*__syncthreads();
 	if(threadIdx.x == 0)
 		for(pat = 0; pat < pat_number; pat++){
 			atomicMin( (unsigned long long*) &d_pat_found[pat], shared_pat_found[pat]);
 		}
-
+	*/
 }
 
 //Inicializar el vector a NOT_FOUND
@@ -487,7 +487,7 @@ int main(int argc, char *argv[]) {
 	
 	// Lanzar el kernel
 	//mitimempo= cp_Wtime();
-	checkMatches<<<numBloquesSeq, hilosBloque, pat_number* sizeof(unsigned long long)>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
+	checkMatches<<<numBloquesSeq, hilosBloque>>>(d_seq, d_pattern, d_pat_found, seq_length, pat_number, d_pat_length);
 	CUDA_CHECK_KERNEL();
 	
 //cudaDeviceSynchronize();
