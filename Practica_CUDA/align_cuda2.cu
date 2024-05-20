@@ -109,7 +109,12 @@ __global__ void inicializarVector( unsigned long* vector, unsigned long tamano){
 __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
     unsigned long tid = threadIdx.x;
 	unsigned long i = threadIdx.x + blockIdx.x * blockDim.x;
+<<<<<<< HEAD
 	unsigned long s, suma;
+=======
+	unsigned long s;
+	unsigned long suma_tid;
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 	
     extern __shared__ unsigned long long shared_checksum_found[];
     extern __shared__ unsigned long long shared_checksum_matches[];
@@ -133,9 +138,15 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
     // Reducción en el bloque utilizando un árbol binario
     for (s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
+<<<<<<< HEAD
 			suma=tid+s;
             shared_checksum_found[tid] += shared_checksum_found[suma];
             shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[suma+blockDim.x];
+=======
+			suma_tid = tid+s;
+            shared_checksum_found[tid] += shared_checksum_found[suma_tid];
+            shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[suma_tid+blockDim.x];
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 			shared_matches[tid+blockDim.x*2] += shared_matches[suma+blockDim.x*2];
         }
       __syncthreads();

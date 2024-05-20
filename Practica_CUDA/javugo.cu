@@ -58,13 +58,17 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
+<<<<<<< HEAD
 #define NUM_HILOS_BLOQ 128
 
+=======
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
 	unsigned long tid = threadIdx.x + blockIdx.x*blockDim.x;
 
+<<<<<<< HEAD
 	rng_skip(&random, tid);
 	float prob = rng_next( &random );
 
@@ -72,27 +76,55 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 	else if( prob < prob_C ) d_seq[tid] = 'C';
 	else if( prob < prob_A ) d_seq[tid] = 'A';
 	else d_seq[tid] = 'T';
+=======
+	if(tid < length){
+		rng_skip(&random, tid);
+		float prob = rng_next( &random );
+
+		if( prob < prob_G ) d_seq[tid] = 'G';
+		else if( prob < prob_C ) d_seq[tid] = 'C';
+		else if( prob < prob_A ) d_seq[tid] = 'A';
+		else d_seq[tid] = 'T';
+	}
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 }
 
 // Kernel para comprobar si hay coincidencias
 __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
 	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
+<<<<<<< HEAD
 	unsigned long ind, pat;
 	char *my_pat;
 	unsigned long my_length, my_pat_found;
+=======
+	unsigned long pat, ind;
+
+	unsigned long my_length, my_pat_found;
+	char *my_pat;
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
 		my_length = d_pat_length[pat];
 		my_pat_found = d_pat_found[pat];
 
+<<<<<<< HEAD
 		if(tid <= seq_length - my_length && (my_pat_found == NOT_FOUND || tid < my_pat_found)){
 			for( ind = 0; ind < my_length; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind] ) break;
 			if(ind == my_length && tid < my_pat_found)
 				atomicMin( (unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 		}
+=======
+		if(tid <= seq_length - my_length)
+			if( tid < my_pat_found){
+				for( ind = 0; ind < my_length; ind ++)
+					if ( d_seq[tid + ind] != my_pat[ind] ) break;
+				if(ind == my_length)
+					atomicMin( (unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
+			}
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 	}
 	
 }
@@ -109,7 +141,11 @@ __global__ void inicializarVector( unsigned long* vector, unsigned long tamano){
 __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
     unsigned long tid = threadIdx.x;
 	unsigned long i = threadIdx.x + blockIdx.x * blockDim.x;
+<<<<<<< HEAD
 	unsigned long s, suma;
+=======
+	unsigned long s;
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 	
     extern __shared__ unsigned long long shared_checksum_found[];
     extern __shared__ unsigned long long shared_checksum_matches[];
@@ -133,10 +169,16 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
     // Reducción en el bloque utilizando un árbol binario
     for (s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
+<<<<<<< HEAD
 			suma=tid+s;
             shared_checksum_found[tid] += shared_checksum_found[suma];
             shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[suma+blockDim.x];
 			shared_matches[tid+blockDim.x*2] += shared_matches[suma+blockDim.x*2];
+=======
+            shared_checksum_found[tid] += shared_checksum_found[tid + s];
+            shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[tid + s+blockDim.x];
+			shared_matches[tid+blockDim.x*2] += shared_matches[tid + s+blockDim.x*2];
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
         }
       __syncthreads();
     }
@@ -429,12 +471,16 @@ int main(int argc, char *argv[]) {
  */
 	/* 2.1. Allocate and fill sequence */
 	
+<<<<<<< HEAD
 	unsigned long hilosBloque;
 	if(seq_length >= (unsigned long )NOT_FOUND)
 		hilosBloque = 1024;
 	else
 		hilosBloque = 256; 
 	// Número de hilos por bloque
+=======
+	unsigned long hilosBloque = 64; // Número de hilos por bloque
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
     unsigned long numBloquesSeq = (seq_length + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer  la secuencia
 	unsigned long numBloquesPat = (pat_number + hilosBloque - 1) / hilosBloque; // Número de bloques necesarios para recorrer los patrones
 
@@ -496,10 +542,18 @@ int main(int argc, char *argv[]) {
 
 	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
+<<<<<<< HEAD
+=======
+	// Reduccion de los checksum
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
 	
 	CUDA_CHECK_KERNEL();
 
+<<<<<<< HEAD
+=======
+	//mitimempo= cp_Wtime();
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &pat_matches, d_pat_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
@@ -527,7 +581,14 @@ int main(int argc, char *argv[]) {
 	/* Free local resources */	
 
 	/*CUDA_CHECK_FUNCTION( cudaFree( d_seq ) );
+<<<<<<< HEAD
 	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found ) );
+=======
+	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found ) ); 
+	CUDA_CHECK_FUNCTION( cudaFree( d_pat_matches ) ); 
+	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_matches ) ); 
+	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_found ) );
+>>>>>>> 255c19760da623e1e9a2e14a144a5dac5f9fad08
 */
 
 /*
