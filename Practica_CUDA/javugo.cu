@@ -526,12 +526,9 @@ int main(int argc, char *argv[]) {
 
 	/* Free local resources */	
 
-	CUDA_CHECK_FUNCTION( cudaFree( d_seq ) );
+	/*CUDA_CHECK_FUNCTION( cudaFree( d_seq ) );
 	CUDA_CHECK_FUNCTION( cudaFree( d_pat_found ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_pat_matches ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_matches ) );
-	CUDA_CHECK_FUNCTION( cudaFree( d_checksum_found ) );
-
+*/
 
 /*
  *
