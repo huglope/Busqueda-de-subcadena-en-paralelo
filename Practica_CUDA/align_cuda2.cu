@@ -58,13 +58,12 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
-#define NUM_HILOS_BLOQ 256
+#define NUM_HILOS_BLOQ 512
 
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
-	unsigned long tid;
-	tid = (unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned long tid = threadIdx.x + blockIdx.x*blockDim.x;
 
 	rng_skip(&random, tid);
 	float prob = rng_next( &random );
@@ -79,13 +78,13 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
 	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
-	unsigned long ind, pat, s;
+	unsigned long ind, pat;
 	char *my_pat;
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
 
-		if(tid <= seq_length - d_pat_length[pat]){
+		if(tid <= seq_length - d_pat_length[pat] && (d_pat_found[pat] == NOT_FOUND || tid < d_pat_found[pat])){
 			for( ind = 0; ind < d_pat_length[pat]; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind] ) break;
 			if(ind == d_pat_length[pat] && tid < d_pat_found[pat])
@@ -135,7 +134,7 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
             shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[tid + s+blockDim.x];
 			shared_matches[tid+blockDim.x*2] += shared_matches[tid + s+blockDim.x*2];
         }
-       __syncthreads();
+      __syncthreads();
     }
 
     if (tid == 0) {

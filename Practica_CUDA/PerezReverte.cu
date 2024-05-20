@@ -58,13 +58,12 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
-#define NUM_HILOS_BLOQ  512
+#define NUM_HILOS_BLOQ 512
 
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
 	
-	unsigned long tid;
-	tid = (unsigned long) threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned long tid = threadIdx.x + blockIdx.x*blockDim.x;
 
 	rng_skip(&random, tid);
 	float prob = rng_next( &random );
@@ -79,13 +78,13 @@ __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, fl
 __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat_found, unsigned long seq_length, unsigned long pat_number, unsigned long *d_pat_length){
 
 	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
-	unsigned long ind, pat, s;
+	unsigned long ind, pat;
 	char *my_pat;
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
 
-		if(tid <= seq_length - d_pat_length[pat]){
+		if(tid <= seq_length - d_pat_length[pat] && (d_pat_found[pat] == NOT_FOUND || tid < d_pat_found[pat])){
 			for( ind = 0; ind < d_pat_length[pat]; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind] ) break;
 			if(ind == d_pat_length[pat] && tid < d_pat_found[pat])
@@ -109,21 +108,21 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
 	unsigned long i = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned long s;
 	
-    __shared__ unsigned long long shared_checksum_found[NUM_HILOS_BLOQ];
-    __shared__ unsigned long long shared_checksum_matches[NUM_HILOS_BLOQ];
-	__shared__ unsigned long long shared_matches[NUM_HILOS_BLOQ];
+    extern __shared__ unsigned long long shared_checksum_found[];
+    extern __shared__ unsigned long long shared_checksum_matches[];
+	extern __shared__ unsigned long long shared_matches[];
 
 	shared_checksum_found[tid] = 0;
-	shared_checksum_matches[tid ] = 0;
-	shared_matches[tid] = 0;
+	shared_checksum_matches[tid +blockDim.x ] = 0;
+	shared_matches[tid+blockDim.x*2] = 0;
 
 
     // Calcular las sumas parciales de los hilos
     if (i < pat_number) {
         if (d_pat_found[i] != NOT_FOUND) {
             shared_checksum_found[tid] = d_pat_found[i];
-            shared_checksum_matches[tid] = d_pat_length[i];
-			shared_matches[tid] = 1;
+            shared_checksum_matches[tid +blockDim.x ] = d_pat_length[i];
+			shared_matches[tid+blockDim.x*2] = 1;
         }
     }
     __syncthreads();
@@ -132,16 +131,16 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
     for (s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
             shared_checksum_found[tid] += shared_checksum_found[tid + s];
-            shared_checksum_matches[tid] += shared_checksum_matches[tid + s];
-			shared_matches[tid] += shared_matches[tid + s];
+            shared_checksum_matches[tid+blockDim.x] += shared_checksum_matches[tid + s+blockDim.x];
+			shared_matches[tid+blockDim.x*2] += shared_matches[tid + s+blockDim.x*2];
         }
-       __syncthreads();
+      __syncthreads();
     }
 
     if (tid == 0) {
         atomicAdd(d_checksum_found, shared_checksum_found[0] % CHECKSUM_MAX);
-        atomicAdd(d_checksum_matches, shared_checksum_matches[0] % CHECKSUM_MAX);
-		atomicAdd(d_pat_matches, shared_matches[0]);
+        atomicAdd(d_checksum_matches, shared_checksum_matches[blockDim.x] % CHECKSUM_MAX);
+		atomicAdd(d_pat_matches, shared_matches[2*blockDim.x]);
     }
 }
 
@@ -502,11 +501,11 @@ for (pat = 0 ; pat < pat_number; pat++)
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_matches, sizeof(unsigned long long) ) );
 	CUDA_CHECK_FUNCTION( cudaMalloc( &d_checksum_found, sizeof(unsigned long long) ) );
 
-	//unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
+	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
 	// Reduccion de los checksum
 	//mitimempo= cp_Wtime();
-	reductionKernel<<<numBloquesPat, hilosBloque/*, externData*/>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
 	
 //cudaDeviceSynchronize();
 	//printf("timepo reduccion = %lf\n", cp_Wtime() - mitimempo);
