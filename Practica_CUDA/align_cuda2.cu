@@ -58,7 +58,7 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
-#define NUM_HILOS_BLOQ 128
+#define NUM_HILOS_BLOQ 64
 
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
@@ -87,10 +87,10 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 		my_length = d_pat_length[pat];
 		my_pat_found = d_pat_found[pat];
 
-		if(tid <= seq_length - my_length && (my_pat_found == NOT_FOUND || tid < my_pat_found)){
+		if(tid <= seq_length - my_length && tid < my_pat_found){
 			for( ind = 0; ind < my_length; ind ++)
-				if ( d_seq[tid + ind] != my_pat[ind] ) break;
-			if(ind == my_length && tid < my_pat_found)
+				if ( d_seq[tid + ind] != my_pat[ind]) break;
+			if(ind == my_length)
 				atomicMin( (unsigned long long*) &d_pat_found[pat], (unsigned long long ) tid);
 		}
 	}
@@ -146,6 +146,15 @@ __global__ void reductionKernel(unsigned long *d_pat_found, unsigned long *d_pat
         atomicAdd(d_checksum_matches, shared_checksum_matches[blockDim.x] % CHECKSUM_MAX);
 		atomicAdd(d_pat_matches, shared_matches[2*blockDim.x]);
     }
+}
+
+__global__ void reductionKernel2 (unsigned long *d_pat_found, unsigned long *d_pat_length, int pat_number, unsigned long long *d_checksum_found, unsigned long long *d_checksum_matches, unsigned long long *d_pat_matches) {
+	unsigned long tid = threadIdx.x + blockIdx.x * blockDim.x;
+	if(tid < pat_number && [tid]!= NOT_FOUND){
+        atomicAdd(d_checksum_found, (d_pat_found[tid] + d_checksum_found) % CHECKSUM_MAX);
+        atomicAdd(d_checksum_matches, (d_pat_length[tid] + d_checksum_matches) % CHECKSUM_MAX);
+		atomicAdd(d_pat_matches, 1);
+	}
 }
 
 /*
@@ -478,8 +487,9 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_KERNEL();
 	
 	/* 7. Check sums */
-	unsigned long checksum_matches;
-	unsigned long checksum_found;
+	CUDA_CHECK_FUNCTION( cudaMemcpy( pat_found, d_pat_found, sizeof(unsigned long)*pat_number, cudaMemcpyDeviceToHost ) );
+	unsigned long checksum_matches = 0;
+	unsigned long checksum_found = 0;
 
 	unsigned long long *d_pat_matches;
 	unsigned long long *d_checksum_matches;
@@ -491,7 +501,8 @@ int main(int argc, char *argv[]) {
 
 	unsigned long externData = hilosBloque * 3 * sizeof(unsigned long long);
 
-	reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	//reductionKernel<<<numBloquesPat, hilosBloque, externData>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
+	reductionKernel2<<<numBloquesPat, hilosBloque>>>(d_pat_found, d_pat_length, pat_number, d_checksum_found, d_checksum_matches, d_pat_matches);
 	
 	CUDA_CHECK_KERNEL();
 
@@ -499,7 +510,15 @@ int main(int argc, char *argv[]) {
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_matches, d_checksum_matches, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_FUNCTION( cudaMemcpy( &checksum_found, d_checksum_found, sizeof(unsigned long long), cudaMemcpyDeviceToHost ) );
 	
-
+	
+	/*unsigned long indice;
+	for (indice = 0; indice < pat_number; indice++)
+		if(pat_found[indice]!= NOT_FOUND){
+			pat_matches++;
+			checksum_matches = (pat_length[indice] + checksum_matches) % CHECKSUM_MAX;
+			checksum_found = (pat_found[indice] + checksum_found) % CHECKSUM_MAX;
+		}
+*/
 	checksum_matches = checksum_matches % CHECKSUM_MAX;
 	checksum_found = checksum_found % CHECKSUM_MAX;
 
