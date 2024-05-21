@@ -58,7 +58,7 @@ double cp_Wtime(){
  * 	This function can be changed and/or optimized by the students
  */
 
-#define NUM_HILOS_BLOQ 64
+#define NUM_HILOS_BLOQ 128
 
 // Kernel para inicializar la secuencia
 __global__ void initializeSequence( rng_t random, float prob_G, float prob_C, float prob_A, unsigned long length, char *d_seq){
@@ -80,16 +80,15 @@ __global__ void checkMatches(char *d_seq, char **d_pattern, unsigned long* d_pat
 	unsigned long tid= blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned long ind, pat;
 	char *my_pat;
-	unsigned long my_length, my_pat_found;
+	unsigned long my_length;
 	int aumenta=0;
 
 	for(pat = 0; pat < pat_number; pat++){
 		my_pat = d_pattern[pat];
 		my_length = d_pat_length[pat];
-		my_pat_found = d_pat_found[pat];
 		aumenta=1;
 
-		if(tid <= seq_length - my_length && tid < my_pat_found){
+		if(tid <= seq_length - my_length && tid < d_pat_found[pat]){
 			for( ind = 0; ind < my_length; ind ++)
 				if ( d_seq[tid + ind] != my_pat[ind]) {
 					aumenta=0;
