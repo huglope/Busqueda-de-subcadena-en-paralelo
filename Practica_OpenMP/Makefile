@@ -17,7 +17,7 @@ FLAGS=-O3
 LIBS=-lm
 
 # Targets to build
-OBJS=align_seq align_omp
+OBJS=R2D2
 
 # Rules. By default show help
 help:
@@ -36,10 +36,7 @@ help:
 
 all: $(OBJS)
 
-align_seq: align.c
-	$(CC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
-
-align_omp: align_omp.c
+R2D2: R2D2.c
 	$(CC) $(FLAGS) $(DEBUG) $(OMPFLAG) $< $(LIBS) -o $@
 
 # Remove the target files

@@ -18,7 +18,7 @@ FLAGS=-O3 -Wall
 LIBS=-lm
 
 # Targets to build
-OBJS=align_seq align_omp align_mpi
+OBJS=TheRealKing
 
 # Rules. By default show help
 help:
@@ -38,13 +38,7 @@ help:
 
 all: $(OBJS)
 
-align_seq: align.c rng.c
-	$(CC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
-
-align_omp: align_omp.c rng.c
-	$(CC) $(FLAGS) $(DEBUG) $(OMPFLAG) $< $(LIBS) -o $@
-
-align_mpi: align_mpi.c rng.c
+TheRealKing: TheRealKing.c rng.c
 	$(MPICC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
 
 # Remove the target files
