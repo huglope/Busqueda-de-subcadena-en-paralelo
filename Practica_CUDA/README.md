@@ -8,7 +8,7 @@ make build FILE=javugo
 ## Como ejecutar
 
 ```bash
-./javugo <parametros >
+./javugo <parametros>
 ```
 
 ## Ejemplo de compilación y ejecución
