@@ -13,4 +13,5 @@ make all
 
 ## Ejemplo de compilación y ejecución
 
-![imagen](https://github.com/user-attachments/assets/282a2689-7a93-4e09-9419-ee497d128b27)
+![imagen](https://github.com/user-attachments/assets/0a3a82c5-3647-42b1-9b26-f0c7ace32a97)
+
