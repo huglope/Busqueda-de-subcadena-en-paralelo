@@ -1,6 +1,6 @@
 # Busqueda de subcadenas en paralelo
 
-Este proyecto se llevó acabo como parte de la asignatura de Computación Paralela. Aquellas partes del código que se encuentran entre los 
+Este proyecto se llevó a cabo como parte de la asignatura de Computación Paralela. Aquellas partes del código que se encuentran entre los 
 comentarios de no modificar, han sido proporcionados por los docentes de la asignatura, así como el fichero **"rng.c"** y el código secuencial
 utilizado para comprobar que los resultados obtenidos son correctos.
 
